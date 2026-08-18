@@ -22,6 +22,12 @@ function createApp() {
 }
 
 describe('production request origin protection', () => {
+  it('allows the configured remote deal-image host in production', async () => {
+    const response = await createApp().inject({ method: 'GET', url: '/health/live' })
+    expect(response.statusCode).toBe(200)
+    expect(response.headers['content-security-policy']).toContain("img-src 'self' data: https://images.unsplash.com")
+  })
+
   it('accepts the public same-origin host forwarded by Railway', async () => {
     const response = await createApp().inject({
       method: 'POST',

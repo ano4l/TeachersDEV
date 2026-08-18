@@ -34,7 +34,11 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
   const pass2u = createPass2UClient(config)
 
   app.register(cookie, { secret: config.SESSION_SECRET })
-  app.register(helmet, { contentSecurityPolicy: config.NODE_ENV === 'production' })
+  app.register(helmet, {
+    contentSecurityPolicy: config.NODE_ENV === 'production' ? {
+      directives: { imgSrc: ["'self'", 'data:', 'https://images.unsplash.com'] },
+    } : false,
+  })
   app.register(rateLimit, { max: 180, timeWindow: '1 minute' })
 
   app.decorateRequest('currentUser', null)
