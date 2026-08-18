@@ -56,4 +56,15 @@ describe('production request origin protection', () => {
     })
     expect(response.statusCode).toBe(403)
   })
+
+  it('returns a field-specific registration validation message', async () => {
+    const response = await createApp().inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      headers: { origin: 'https://canonical.example.com' },
+      payload: { firstName: 'A', lastName: 'Teacher', personalEmail: 'teacher@example.com', city: 'Johannesburg', password: 'long-enough-password' },
+    })
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toEqual({ error: 'First name must contain at least 2 characters.' })
+  })
 })

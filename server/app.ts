@@ -24,7 +24,18 @@ declare module 'fastify' {
 
 function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   const result = schema.safeParse(value)
-  if (!result.success) throw Object.assign(new Error(result.error.issues[0]?.message ?? 'Invalid request'), { statusCode: 400 })
+  if (!result.success) {
+    const issue = result.error.issues[0]
+    const field = String(issue?.path[0] ?? '')
+    const labels: Record<string, string> = { firstName: 'First name', lastName: 'Last name', personalEmail: 'Personal email', workEmail: 'School/work email', mobile: 'Mobile number', city: 'City', password: 'Password', businessName: 'Business name', businessEmail: 'Business email', proposedDeal: 'Proposed deal' }
+    const label = labels[field] ?? 'This field'
+    let message = `${label} is invalid.`
+    if (issue?.code === 'too_small') message = `${label} must contain at least ${issue.minimum} characters.`
+    else if (issue?.code === 'too_big') message = `${label} is too long.`
+    else if (issue?.code === 'invalid_type') message = `${label} is required.`
+    else if (issue?.code === 'invalid_format' && issue.format === 'email') message = `Enter a valid ${label.toLowerCase()}.`
+    throw Object.assign(new Error(message), { statusCode: 400 })
+  }
   return result.data
 }
 
