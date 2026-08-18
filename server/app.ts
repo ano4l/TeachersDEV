@@ -41,7 +41,12 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
   app.addHook('onRequest', async request => {
     if (config.NODE_ENV !== 'production' || ['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return
     const origin = request.headers.origin
-    if (origin && origin !== new URL(config.APP_URL).origin) throw Object.assign(new Error('Request origin is not allowed.'), { statusCode: 403 })
+    if (!origin) return
+    const forwardedHost = String(request.headers['x-forwarded-host'] ?? request.headers.host ?? '').split(',')[0]!.trim()
+    const forwardedProto = String(request.headers['x-forwarded-proto'] ?? request.protocol).split(',')[0]!.trim()
+    const configuredOrigin = new URL(config.APP_URL).origin
+    const requestOrigin = forwardedHost ? new URL(`${forwardedProto}://${forwardedHost}`).origin : null
+    if (origin !== configuredOrigin && origin !== requestOrigin) throw Object.assign(new Error('Request origin is not allowed.'), { statusCode: 403 })
   })
   app.addHook('preHandler', async request => {
     const raw = request.cookies[SESSION_COOKIE]
