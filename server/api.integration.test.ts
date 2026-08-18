@@ -10,7 +10,7 @@ const suite = databaseUrl ? describe : describe.skip
 suite('V1 API integration', () => {
   const email = `teacher-${randomUUID()}@gmail.com`
   const config = getConfig({
-    NODE_ENV: 'development', DATABASE_URL: databaseUrl,
+    NODE_ENV: 'development', DATABASE_URL: databaseUrl ?? 'postgresql://test:test@localhost:5432/teachersvip_test',
     APP_URL: 'http://localhost:8443', SESSION_SECRET: 'integration-test-session-secret-32-characters',
     DATA_ENCRYPTION_KEY: '11'.repeat(32), RESEND_API_KEY: undefined,
   })

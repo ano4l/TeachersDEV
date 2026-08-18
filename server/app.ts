@@ -126,7 +126,11 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     await db.query('INSERT INTO educator_verifications(id,user_id,work_email,token_hash,expires_at) VALUES($1,$2,$3,$4,now()+interval \'30 minutes\')', [randomUUID(), user.id, workEmail, tokenHash(token)])
     const verificationUrl = `${config.APP_URL}/verify?token=${encodeURIComponent(token)}`
     if (resend) {
-      await resend.emails.send({ from: config.RESEND_FROM_EMAIL, to: workEmail, subject: 'Verify your TeachersVIP educator email', html: `<h1>Verify your educator email</h1><p>Use the secure link below within 30 minutes.</p><p><a href="${verificationUrl}">Verify educator email</a></p><p>If you did not request this, you can ignore this message.</p>` })
+      const { error } = await resend.emails.send({ from: config.RESEND_FROM_EMAIL, to: workEmail, subject: 'Verify your TeachersVIP educator email', html: `<h1>Verify your educator email</h1><p>Use the secure link below within 30 minutes.</p><p><a href="${verificationUrl}">Verify educator email</a></p><p>If you did not request this, you can ignore this message.</p>` })
+      if (error) {
+        app.log.error({ resendError: error }, 'Resend rejected the verification email')
+        throw Object.assign(new Error('The verification email could not be sent. Please try again shortly.'), { statusCode: 502 })
+      }
     } else if (config.NODE_ENV === 'development') app.log.info({ verificationUrl }, 'Resend is not configured; development verification URL')
     return { ok: true, ...(config.NODE_ENV === 'development' && !resend ? { verificationUrl } : {}) }
   })
@@ -258,8 +262,9 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
         await client.query(`INSERT INTO analytics_events(id,event_type,user_id,business_id,deal_id,metadata) VALUES($1,'reported_deal_use',$2,$3,$4,$5)`, [randomUUID(), user.id, deal.rows[0].business_id, id, JSON.stringify({ estimatedSavingsCents: deal.rows[0].estimated_savings_cents })])
         await client.query(`INSERT INTO analytics_events(id,event_type,user_id,business_id,deal_id,metadata) VALUES($1,'estimated_savings',$2,$3,$4,$5)`, [randomUUID(), user.id, deal.rows[0].business_id, id, JSON.stringify({ amountCents: deal.rows[0].estimated_savings_cents })])
       }
+      const totals = await client.query<{ reported_uses: number; estimated_savings_cents: number }>(`SELECT COUNT(*)::int reported_uses,COALESCE(SUM(estimated_savings_cents),0)::int estimated_savings_cents FROM deal_use_reports WHERE user_id=$1`, [user.id])
       await client.query('COMMIT')
-      return { ok: true, duplicate: !inserted.rowCount }
+      return { ok: true, duplicate: !inserted.rowCount, addedSavingsCents: inserted.rowCount ? deal.rows[0].estimated_savings_cents : 0, reportedUses: totals.rows[0].reported_uses, estimatedSavingsCents: totals.rows[0].estimated_savings_cents }
     } catch (error) { await client.query('ROLLBACK'); throw error }
     finally { client.release() }
   })
