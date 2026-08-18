@@ -18,7 +18,7 @@ describe('Pass2U client', () => {
     const [url, options] = fetcher.mock.calls[0]!
     expect(url).toContain('/v2/models/1919/passes')
     expect((options?.headers as Record<string, string>)['x-api-key']).toBe(config.PASS2U_API_KEY)
-    expect(JSON.parse(String(options?.body))).toMatchObject({ fields: [{ key: 'name', value: 'Amina Khumalo' }, { key: 'member_id', value: 'TVIP-123456' }, { key: 'status', value: 'Verified Educator' }] })
+    expect(JSON.parse(String(options?.body))).toMatchObject({ fields: [{ key: 'name', value: 'Amina Khumalo' }, { key: 'memberid', value: 'TVIP-123456' }, { key: 'status', value: 'Verified Educator' }] })
   })
 
   it('does not expose provider error bodies', async () => {

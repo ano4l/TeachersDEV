@@ -12,7 +12,7 @@ const schema = z.object({
   PASS2U_API_KEY: z.string().min(20).optional(),
   PASS2U_MODEL_ID: z.string().min(1).optional(),
   PASS2U_MEMBER_NAME_FIELD: z.string().default('name'),
-  PASS2U_MEMBER_ID_FIELD: z.string().default('member_id'),
+  PASS2U_MEMBER_ID_FIELD: z.string().default('memberid'),
   PASS2U_STATUS_FIELD: z.string().default('status'),
 })
 

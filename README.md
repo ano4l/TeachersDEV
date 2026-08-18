@@ -42,7 +42,7 @@ Create a Pass2U membership-card model with three Dynamic fields and configure:
 - `PASS2U_API_KEY`
 - `PASS2U_MODEL_ID`
 - `PASS2U_MEMBER_NAME_FIELD` (default `name`)
-- `PASS2U_MEMBER_ID_FIELD` (default `member_id`)
+- `PASS2U_MEMBER_ID_FIELD` (default `memberid`)
 - `PASS2U_STATUS_FIELD` (default `status`)
 
 The field values must match the unique Dynamic field keys configured in Pass2U's Model Designer. The verified-user endpoint `POST /api/me/wallet-pass` creates the pass once, stores the returned Pass2U `passId`, and returns its public Pass2U download URL. Repeated requests return the same pass instead of issuing duplicates.
