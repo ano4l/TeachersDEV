@@ -12,7 +12,7 @@ const GOLD = '#D4AF37', INK = '#0F172A'
 const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
 
 function Logo({ light = false }: { light?: boolean }) {
-  return <Link to="/deals" className="brand" aria-label="TeachersVIP home"><span className="brand-mark">TV</span><span style={{ color: light ? '#fff' : INK }}>Teachers</span><span style={{ color: GOLD }}>VIP</span></Link>
+  return <Link to="/deals" className="brand" aria-label="TeachersVIP home"><img className="brand-mark" src="/teachersvip-logo.png" alt="" /><span style={{ color: light ? '#fff' : INK }}>Teachers</span><span style={{ color: GOLD }}>VIP</span></Link>
 }
 function Button({ children, variant = 'gold', type = 'button', disabled, onClick }: { children: ReactNode; variant?: 'gold' | 'navy' | 'soft' | 'danger'; type?: 'button' | 'submit'; disabled?: boolean; onClick?: () => void }) { return <button type={type} disabled={disabled} onClick={onClick} className={`action action-${variant}`}>{children}</button> }
 function Field({ label, name, type = 'text', required, defaultValue, placeholder, minLength, readOnly = false }: { label: string; name: string; type?: string; required?: boolean; defaultValue?: string; placeholder?: string; minLength?: number; readOnly?: boolean }) { return <label className="field"><span>{label}</span><input name={name} type={type} required={required} defaultValue={defaultValue} placeholder={placeholder} minLength={minLength} readOnly={readOnly} />{readOnly && <small className="field-note">Managed through your account sign-in.</small>}</label> }
