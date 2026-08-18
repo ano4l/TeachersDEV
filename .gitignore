@@ -1,0 +1,21 @@
+node_modules/
+dist/
+build/
+.cache/
+.env
+.env.*
+.vite/
+vite.config.*.timestamp-*
+*.tsbuildinfo
+*-debug.log*
+logs/
+*.log
+.claude-replay.*
+.tmp-*
+
+# Internal design assets and documents — keep out of public repo
+src/imports/pasted_text/
+src/imports/*.pdf
+src/imports/WhatsApp_*.jpeg
+src/imports/WhatsApp_*.jpg
+src/imports/WhatsApp_*.png

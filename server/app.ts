@@ -1,0 +1,289 @@
+import { randomUUID } from 'node:crypto'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+import Fastify, { type FastifyRequest } from 'fastify'
+import cookie from '@fastify/cookie'
+import helmet from '@fastify/helmet'
+import rateLimit from '@fastify/rate-limit'
+import fastifyStatic from '@fastify/static'
+import { Resend } from 'resend'
+import { z } from 'zod'
+import type { Config } from './config.js'
+import type { DbPool } from './db/pool.js'
+import { decrypt, hashPassword, randomToken, tokenHash, verifyPassword } from './security.js'
+import { createPass2UClient } from './integrations/pass2u.js'
+
+const SESSION_COOKIE = 'teachersvip_session'
+const allowedAnalytics = new Set(['business_listing_view', 'deal_view', 'website_click', 'directions_click', 'promo_code_reveal', 'reported_deal_use', 'estimated_savings'])
+
+type UserRow = { id: string; personal_email: string; first_name: string; last_name: string; mobile: string | null; city: string; sms_consent: boolean; work_email: string | null; educator_verified_at: string | null }
+
+declare module 'fastify' {
+  interface FastifyRequest { currentUser: UserRow | null }
+}
+
+function parse<T>(schema: z.ZodType<T>, value: unknown): T {
+  const result = schema.safeParse(value)
+  if (!result.success) throw Object.assign(new Error(result.error.issues[0]?.message ?? 'Invalid request'), { statusCode: 400 })
+  return result.data
+}
+
+export function buildApp({ config, db }: { config: Config; db: DbPool }) {
+  const app = Fastify({ logger: { redact: ['req.headers.cookie', 'req.body.password', 'req.body.promoCode'] }, trustProxy: true })
+  const resend = config.RESEND_API_KEY ? new Resend(config.RESEND_API_KEY) : null
+  const pass2u = createPass2UClient(config)
+
+  app.register(cookie, { secret: config.SESSION_SECRET })
+  app.register(helmet, { contentSecurityPolicy: config.NODE_ENV === 'production' })
+  app.register(rateLimit, { max: 180, timeWindow: '1 minute' })
+
+  app.decorateRequest('currentUser', null)
+  app.addHook('onRequest', async request => {
+    if (config.NODE_ENV !== 'production' || ['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return
+    const origin = request.headers.origin
+    if (origin && origin !== new URL(config.APP_URL).origin) throw Object.assign(new Error('Request origin is not allowed.'), { statusCode: 403 })
+  })
+  app.addHook('preHandler', async request => {
+    const raw = request.cookies[SESSION_COOKIE]
+    if (!raw) return
+    const result = await db.query<UserRow>(`SELECT u.id,u.personal_email,u.first_name,u.last_name,u.mobile,u.city,u.sms_consent,u.work_email,u.educator_verified_at
+      FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.revoked_at IS NULL AND s.expires_at>now()`, [tokenHash(raw)])
+    request.currentUser = result.rows[0] ?? null
+  })
+
+  const requireUser = (request: FastifyRequest) => {
+    if (!request.currentUser) throw Object.assign(new Error('Authentication required'), { statusCode: 401 })
+    return request.currentUser
+  }
+  const requireVerified = (request: FastifyRequest) => {
+    const user = requireUser(request)
+    if (!user.educator_verified_at) throw Object.assign(new Error('Educator verification required'), { statusCode: 403 })
+    return user
+  }
+
+  async function createSession(reply: any, userId: string) {
+    const token = randomToken()
+    await db.query('INSERT INTO sessions(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,now()+interval \'30 days\')', [randomUUID(), userId, tokenHash(token)])
+    reply.setCookie(SESSION_COOKIE, token, { httpOnly: true, secure: config.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 30 })
+  }
+
+  app.get('/health/live', async () => ({ status: 'ok' }))
+  app.get('/health/ready', async (_request, reply) => {
+    try { await db.query('SELECT 1'); return { status: 'ready' } }
+    catch { return reply.code(503).send({ status: 'not_ready' }) }
+  })
+
+  app.post('/api/auth/register', { config: { rateLimit: { max: 8, timeWindow: '15 minutes' } } }, async (request, reply) => {
+    const body = parse(z.object({
+      firstName: z.string().trim().min(2).max(80), lastName: z.string().trim().min(2).max(80),
+      personalEmail: z.email().transform(v => v.toLowerCase()), mobile: z.string().trim().max(30).optional(),
+      city: z.string().trim().min(2).max(100), password: z.string().min(10).max(128), smsConsent: z.boolean().default(false),
+    }), request.body)
+    const id = randomUUID()
+    try {
+      await db.query(`INSERT INTO users(id,personal_email,password_hash,first_name,last_name,mobile,city,sms_consent,sms_consent_version,sms_consented_at)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`, [id, body.personalEmail, await hashPassword(body.password), body.firstName, body.lastName, body.mobile || null, body.city, body.smsConsent, body.smsConsent ? 'v1-2026-08' : null, body.smsConsent ? new Date() : null])
+      await db.query('INSERT INTO member_cards(id,user_id,member_id) VALUES($1,$2,$3)', [randomUUID(), id, `TVIP-${randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`])
+    } catch (error: any) {
+      if (error.code === '23505') return reply.code(409).send({ error: 'An account already exists for this email.' })
+      throw error
+    }
+    await createSession(reply, id)
+    return reply.code(201).send({ ok: true })
+  })
+
+  app.post('/api/auth/sign-in', { config: { rateLimit: { max: 10, timeWindow: '15 minutes' } } }, async (request, reply) => {
+    const body = parse(z.object({ email: z.email().transform(v => v.toLowerCase()), password: z.string().min(1) }), request.body)
+    const result = await db.query<{ id: string; password_hash: string }>('SELECT id,password_hash FROM users WHERE personal_email=$1', [body.email])
+    const user = result.rows[0]
+    if (!user || !(await verifyPassword(body.password, user.password_hash))) return reply.code(401).send({ error: 'Invalid email or password.' })
+    await createSession(reply, user.id)
+    return { ok: true }
+  })
+
+  app.post('/api/auth/sign-out', async (request, reply) => {
+    const raw = request.cookies[SESSION_COOKIE]
+    if (raw) await db.query('UPDATE sessions SET revoked_at=now() WHERE token_hash=$1', [tokenHash(raw)])
+    reply.clearCookie(SESSION_COOKIE, { path: '/' })
+    return { ok: true }
+  })
+
+  app.get('/api/auth/session', async request => ({ user: request.currentUser ? { ...request.currentUser, verified: Boolean(request.currentUser.educator_verified_at) } : null }))
+
+  app.post('/api/verification/send', { config: { rateLimit: { max: 4, timeWindow: '15 minutes' } } }, async request => {
+    const user = requireUser(request)
+    const { workEmail } = parse(z.object({ workEmail: z.email().transform(v => v.toLowerCase()) }), request.body)
+    const token = randomToken()
+    await db.query('INSERT INTO educator_verifications(id,user_id,work_email,token_hash,expires_at) VALUES($1,$2,$3,$4,now()+interval \'30 minutes\')', [randomUUID(), user.id, workEmail, tokenHash(token)])
+    const verificationUrl = `${config.APP_URL}/verify?token=${encodeURIComponent(token)}`
+    if (resend) {
+      await resend.emails.send({ from: config.RESEND_FROM_EMAIL, to: workEmail, subject: 'Verify your TeachersVIP educator email', html: `<h1>Verify your educator email</h1><p>Use the secure link below within 30 minutes.</p><p><a href="${verificationUrl}">Verify educator email</a></p><p>If you did not request this, you can ignore this message.</p>` })
+    } else if (config.NODE_ENV === 'development') app.log.info({ verificationUrl }, 'Resend is not configured; development verification URL')
+    return { ok: true, ...(config.NODE_ENV === 'development' && !resend ? { verificationUrl } : {}) }
+  })
+
+  app.post('/api/verification/confirm', async request => {
+    const { token } = parse(z.object({ token: z.string().min(20) }), request.body)
+    const client = await db.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await client.query<{ id: string; user_id: string; work_email: string }>('SELECT id,user_id,work_email FROM educator_verifications WHERE token_hash=$1 AND consumed_at IS NULL AND expires_at>now() FOR UPDATE', [tokenHash(token)])
+      const record = result.rows[0]
+      if (!record) throw Object.assign(new Error('This verification link is invalid or expired.'), { statusCode: 400 })
+      await client.query('UPDATE educator_verifications SET consumed_at=now() WHERE id=$1', [record.id])
+      await client.query('UPDATE users SET work_email=$1,educator_verified_at=now(),updated_at=now() WHERE id=$2', [record.work_email, record.user_id])
+      await client.query('COMMIT')
+      return { ok: true }
+    } catch (error) { await client.query('ROLLBACK'); throw error }
+    finally { client.release() }
+  })
+
+  app.get('/api/me', async request => {
+    const user = requireUser(request)
+    const result = await db.query(`SELECT u.id,u.personal_email,u.first_name,u.last_name,u.mobile,u.city,u.sms_consent,u.work_email,u.educator_verified_at,m.member_id,
+      COALESCE((SELECT sum(estimated_savings_cents) FROM deal_use_reports r WHERE r.user_id=u.id),0)::int estimated_savings_cents,
+      COALESCE((SELECT count(*) FROM deal_use_reports r WHERE r.user_id=u.id),0)::int reported_uses
+      FROM users u JOIN member_cards m ON m.user_id=u.id WHERE u.id=$1`, [user.id])
+    return { profile: result.rows[0] }
+  })
+
+  app.patch('/api/me', async request => {
+    const user = requireUser(request)
+    const body = parse(z.object({ firstName: z.string().trim().min(2).max(80), lastName: z.string().trim().min(2).max(80), mobile: z.string().trim().max(30).nullable(), city: z.string().trim().min(2).max(100), smsConsent: z.boolean() }), request.body)
+    await db.query(`UPDATE users SET first_name=$1,last_name=$2,mobile=$3,city=$4,sms_consent=$5,
+      sms_consent_version=CASE WHEN $5 THEN 'v1-2026-08' ELSE sms_consent_version END,
+      sms_consented_at=CASE WHEN $5 AND NOT sms_consent THEN now() ELSE sms_consented_at END,updated_at=now() WHERE id=$6`, [body.firstName, body.lastName, body.mobile, body.city, body.smsConsent, user.id])
+    return { ok: true }
+  })
+
+  app.get('/api/me/vip-card', async request => {
+    const user = requireVerified(request)
+    const result = await db.query('SELECT member_id,status,issued_at FROM member_cards WHERE user_id=$1', [user.id])
+    const wallet = await db.query<{ status: string; provider_pass_id: string | null }>('SELECT status,provider_pass_id FROM wallet_passes WHERE user_id=$1 AND provider=$2', [user.id, 'pass2u'])
+    return { card: { ...result.rows[0], teacherName: `${user.first_name} ${user.last_name}`, verified: true, walletStatus: wallet.rows[0]?.status ?? (pass2u.ready ? 'available' : 'not_configured'), walletDownloadUrl: wallet.rows[0]?.provider_pass_id ? `https://www.pass2u.net/d/${encodeURIComponent(wallet.rows[0].provider_pass_id!)}` : null } }
+  })
+
+  app.post('/api/me/wallet-pass', { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } }, async request => {
+    const user = requireVerified(request)
+    if (!pass2u.ready) throw Object.assign(new Error('Pass2U automation is not configured.'), { statusCode: 503 })
+    const client = await db.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(`INSERT INTO wallet_passes(id,user_id,provider,status) VALUES($1,$2,'pass2u','pending') ON CONFLICT (user_id,provider) DO NOTHING`, [randomUUID(), user.id])
+      const existing = await client.query<{ provider_pass_id: string | null; status: string }>(`SELECT provider_pass_id,status FROM wallet_passes WHERE user_id=$1 AND provider='pass2u' FOR UPDATE`, [user.id])
+      if (existing.rows[0]?.provider_pass_id && existing.rows[0].status === 'active') {
+        await client.query('COMMIT')
+        return { status: 'active', downloadUrl: `https://www.pass2u.net/d/${encodeURIComponent(existing.rows[0].provider_pass_id)}` }
+      }
+      const member = await client.query<{ member_id: string }>('SELECT member_id FROM member_cards WHERE user_id=$1', [user.id])
+      try {
+        const created = await pass2u.createMembershipPass({ teacherName: `${user.first_name} ${user.last_name}`, memberId: member.rows[0]!.member_id })
+        await client.query(`UPDATE wallet_passes SET provider_pass_id=$1,status='active',last_error=NULL,updated_at=now() WHERE user_id=$2 AND provider='pass2u'`, [created.passId, user.id])
+        await client.query('COMMIT')
+        return { status: 'active', downloadUrl: created.downloadUrl }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Pass2U request failed.'
+        await client.query(`UPDATE wallet_passes SET status='failed',last_error=$1,updated_at=now() WHERE user_id=$2 AND provider='pass2u'`, [message, user.id])
+        await client.query('COMMIT')
+        throw error
+      }
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined)
+      throw error
+    } finally { client.release() }
+  })
+
+  app.get('/api/deals', async request => {
+    const query = parse(z.object({ q: z.string().optional(), category: z.string().optional(), channel: z.enum(['in_person', 'online']).optional(), saved: z.coerce.boolean().optional() }), request.query)
+    const userId = request.currentUser?.id ?? null
+    const result = await db.query(`SELECT d.id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,
+      b.id business_id,b.name business_name,b.description business_description,b.image_url,b.website_url,b.distance,b.hours,b.is_open,b.address,b.latitude,b.longitude,
+      EXISTS(SELECT 1 FROM saved_deals s WHERE s.deal_id=d.id AND s.user_id=$1) saved
+      FROM deals d JOIN businesses b ON b.id=d.business_id
+      WHERE d.published AND b.published AND ($2::text IS NULL OR d.category=$2) AND ($3::text IS NULL OR d.channel=$3)
+      AND ($4::text IS NULL OR d.title ILIKE '%'||$4||'%' OR b.name ILIKE '%'||$4||'%')
+      AND (NOT $5::boolean OR EXISTS(SELECT 1 FROM saved_deals s WHERE s.deal_id=d.id AND s.user_id=$1))
+      ORDER BY d.featured DESC,d.sponsored DESC,b.name`, [userId, query.category ?? null, query.channel ?? null, query.q ?? null, query.saved ?? false])
+    return { deals: result.rows }
+  })
+
+  app.get('/api/deals/:id', async (request, reply) => {
+    const { id } = parse(z.object({ id: z.string() }), request.params)
+    const result = await db.query(`SELECT d.id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,
+      b.id business_id,b.name business_name,b.description business_description,b.image_url,b.website_url,b.distance,b.hours,b.is_open,b.address,b.latitude,b.longitude
+      FROM deals d JOIN businesses b ON b.id=d.business_id WHERE d.id=$1 AND d.published AND b.published`, [id])
+    if (!result.rows[0]) return reply.code(404).send({ error: 'Deal not found.' })
+    return { deal: result.rows[0] }
+  })
+
+  app.post('/api/deals/:id/save', async request => {
+    const user = requireUser(request); const { id } = parse(z.object({ id: z.string() }), request.params)
+    await db.query('INSERT INTO saved_deals(user_id,deal_id) VALUES($1,$2) ON CONFLICT DO NOTHING', [user.id, id]); return { saved: true }
+  })
+  app.delete('/api/deals/:id/save', async request => {
+    const user = requireUser(request); const { id } = parse(z.object({ id: z.string() }), request.params)
+    await db.query('DELETE FROM saved_deals WHERE user_id=$1 AND deal_id=$2', [user.id, id]); return { saved: false }
+  })
+
+  app.post('/api/deals/:id/reveal-code', async request => {
+    const user = requireVerified(request); const { id } = parse(z.object({ id: z.string() }), request.params)
+    const result = await db.query<{ promo_code_encrypted: string | null; channel: string; business_id: string }>('SELECT promo_code_encrypted,channel,business_id FROM deals WHERE id=$1 AND published', [id])
+    const deal = result.rows[0]
+    if (!deal || deal.channel !== 'online' || !deal.promo_code_encrypted) throw Object.assign(new Error('No promotional code is available for this deal.'), { statusCode: 404 })
+    await db.query('INSERT INTO analytics_events(id,event_type,user_id,business_id,deal_id) VALUES($1,$2,$3,$4,$5)', [randomUUID(), 'promo_code_reveal', user.id, deal.business_id, id])
+    return { promoCode: decrypt(deal.promo_code_encrypted, config.DATA_ENCRYPTION_KEY) }
+  })
+
+  app.post('/api/deals/:id/report-use', async request => {
+    const user = requireVerified(request); const { id } = parse(z.object({ id: z.string() }), request.params)
+    const { idempotencyKey } = parse(z.object({ idempotencyKey: z.string().uuid() }), request.body)
+    const client = await db.connect()
+    try {
+      await client.query('BEGIN')
+      const deal = await client.query<{ estimated_savings_cents: number; business_id: string }>('SELECT estimated_savings_cents,business_id FROM deals WHERE id=$1 AND published', [id])
+      if (!deal.rows[0]) throw Object.assign(new Error('Deal not found.'), { statusCode: 404 })
+      const reportId = randomUUID()
+      const inserted = await client.query(`INSERT INTO deal_use_reports(id,user_id,deal_id,idempotency_key,estimated_savings_cents) VALUES($1,$2,$3,$4,$5)
+        ON CONFLICT (user_id,idempotency_key) DO NOTHING RETURNING id`, [reportId, user.id, id, idempotencyKey, deal.rows[0].estimated_savings_cents])
+      if (inserted.rowCount) {
+        await client.query(`INSERT INTO analytics_events(id,event_type,user_id,business_id,deal_id,metadata) VALUES($1,'reported_deal_use',$2,$3,$4,$5)`, [randomUUID(), user.id, deal.rows[0].business_id, id, JSON.stringify({ estimatedSavingsCents: deal.rows[0].estimated_savings_cents })])
+        await client.query(`INSERT INTO analytics_events(id,event_type,user_id,business_id,deal_id,metadata) VALUES($1,'estimated_savings',$2,$3,$4,$5)`, [randomUUID(), user.id, deal.rows[0].business_id, id, JSON.stringify({ amountCents: deal.rows[0].estimated_savings_cents })])
+      }
+      await client.query('COMMIT')
+      return { ok: true, duplicate: !inserted.rowCount }
+    } catch (error) { await client.query('ROLLBACK'); throw error }
+    finally { client.release() }
+  })
+
+  app.get('/api/me/reported-uses', async request => {
+    const user = requireUser(request)
+    const result = await db.query(`SELECT r.id,r.reported_at,r.estimated_savings_cents,d.title,b.name business_name FROM deal_use_reports r JOIN deals d ON d.id=r.deal_id JOIN businesses b ON b.id=d.business_id WHERE r.user_id=$1 ORDER BY r.reported_at DESC`, [user.id])
+    return { reports: result.rows }
+  })
+
+  app.post('/api/analytics/events', async request => {
+    const body = parse(z.object({ eventType: z.string(), businessId: z.string().nullable().optional(), dealId: z.string().nullable().optional(), idempotencyKey: z.string().max(100).optional(), metadata: z.record(z.string(), z.unknown()).default({}) }), request.body)
+    if (!allowedAnalytics.has(body.eventType)) throw Object.assign(new Error('Unsupported analytics event.'), { statusCode: 400 })
+    await db.query(`INSERT INTO analytics_events(id,event_type,user_id,session_key,business_id,deal_id,idempotency_key,metadata) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+      ON CONFLICT DO NOTHING`, [randomUUID(), body.eventType, request.currentUser?.id ?? null, request.ip, body.businessId ?? null, body.dealId ?? null, body.idempotencyKey ?? null, JSON.stringify(body.metadata)])
+    return { ok: true }
+  })
+
+  app.post('/api/partner-inquiries', { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } }, async (request, reply) => {
+    const body = parse(z.object({ businessName: z.string().trim().min(2).max(140), businessEmail: z.email().transform(v => v.toLowerCase()), proposedDeal: z.string().trim().min(5).max(1000) }), request.body)
+    await db.query('INSERT INTO partner_inquiries(id,user_id,business_name,business_email,proposed_deal) VALUES($1,$2,$3,$4,$5)', [randomUUID(), request.currentUser?.id ?? null, body.businessName, body.businessEmail, body.proposedDeal])
+    return reply.code(201).send({ ok: true })
+  })
+
+  app.setErrorHandler((error: any, _request, reply) => {
+    app.log.error(error)
+    reply.code(error.statusCode ?? 500).send({ error: error.statusCode ? error.message : 'Something went wrong.' })
+  })
+
+  if (config.NODE_ENV === 'production') {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist')
+    app.register(fastifyStatic, { root, wildcard: false })
+    app.setNotFoundHandler((request, reply) => request.url.startsWith('/api/') ? reply.code(404).send({ error: 'Not found.' }) : reply.sendFile('index.html'))
+  }
+  return app
+}

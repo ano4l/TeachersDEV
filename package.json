@@ -1,0 +1,47 @@
+{
+  "name": "figma-make-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "dev:api": "tsx watch server/index.ts",
+    "dev:full": "tsx scripts/dev.ts",
+    "build": "vite build",
+    "start": "tsx server/index.ts",
+    "db:migrate": "tsx server/db/migrate.ts",
+    "db:seed": "tsx server/db/seed.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "preview": "vite preview",
+    "format": "oxfmt"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/helmet": "^13.1.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "@fastify/static": "^10.1.3",
+    "@phosphor-icons/react": "^2.1.10",
+    "fastify": "^5.12.0",
+    "pg": "^8.23.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.18.2",
+    "resend": "^6.20.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.21.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "oxfmt": "^0.2.0",
+    "tailwindcss": "^4.0.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.7.0",
+    "vite": "^8.0.0",
+    "vitest": "^4.1.10"
+  }
+}
