@@ -37,6 +37,7 @@ suite('V1 API integration', () => {
 
     const confirmed = await app.inject({ method: 'POST', url: '/api/verification/confirm', headers: { cookie }, payload: { token } })
     expect(confirmed.statusCode).toBe(200)
+    expect(confirmed.headers['set-cookie']).toContain('teachersvip_session=')
 
     const reveal = await app.inject({ method: 'POST', url: '/api/deals/teacher-tech-25/reveal-code', headers: { cookie } })
     expect(reveal.json()).toEqual({ promoCode: 'EDUCATOR25' })

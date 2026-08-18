@@ -151,9 +151,10 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     return { ok: true, ...(config.NODE_ENV === 'development' && !resend ? { verificationUrl } : {}) }
   })
 
-  app.post('/api/verification/confirm', async request => {
+  app.post('/api/verification/confirm', async (request, reply) => {
     const { token } = parse(z.object({ token: z.string().min(20) }), request.body)
     const client = await db.connect()
+    let verifiedUserId = ''
     try {
       await client.query('BEGIN')
       const result = await client.query<{ id: string; user_id: string; work_email: string }>('SELECT id,user_id,work_email FROM educator_verifications WHERE token_hash=$1 AND consumed_at IS NULL AND expires_at>now() FOR UPDATE', [tokenHash(token)])
@@ -162,9 +163,11 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
       await client.query('UPDATE educator_verifications SET consumed_at=now() WHERE id=$1', [record.id])
       await client.query('UPDATE users SET work_email=$1,educator_verified_at=now(),updated_at=now() WHERE id=$2', [record.work_email, record.user_id])
       await client.query('COMMIT')
-      return { ok: true }
+      verifiedUserId = record.user_id
     } catch (error) { await client.query('ROLLBACK'); throw error }
     finally { client.release() }
+    await createSession(reply, verifiedUserId)
+    return { ok: true }
   })
 
   app.get('/api/me', async request => {
