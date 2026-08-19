@@ -23,6 +23,18 @@ describe('Pass2U client', () => {
 
   it('does not expose provider error bodies', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ message: 'private provider detail' }), { status: 400 }))
-    await expect(createPass2UClient(config, fetcher).createMembershipPass({ teacherName: 'Test Teacher', memberId: 'TVIP-1' })).rejects.toThrow('Pass2U could not create the wallet card.')
+    await expect(createPass2UClient(config, fetcher).createMembershipPass({ teacherName: 'Test Teacher', memberId: 'TVIP-1' })).rejects.toThrow('Confirm the model ID and all three Dynamic field keys')
+  })
+
+  it('turns common provider failures into actionable setup messages', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ message: 'field key is invalid' }), { status: 400 }))
+    await expect(createPass2UClient(config, fetcher).createMembershipPass({ teacherName: 'Test Teacher', memberId: 'TVIP-1' })).rejects.toThrow('Confirm the model ID and all three Dynamic field keys')
+  })
+
+  it('rejects duplicate Dynamic field keys before calling Pass2U', async () => {
+    const fetcher = vi.fn<typeof fetch>()
+    const duplicateConfig = { ...config, PASS2U_STATUS_FIELD: 'name' }
+    await expect(createPass2UClient(duplicateConfig, fetcher).createMembershipPass({ teacherName: 'Test Teacher', memberId: 'TVIP-1' })).rejects.toThrow('three unique Dynamic field keys')
+    expect(fetcher).not.toHaveBeenCalled()
   })
 })

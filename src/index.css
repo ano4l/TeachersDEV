@@ -105,9 +105,9 @@ h1, h2 { font-family: Oswald, sans-serif; }
 .deal-card { position: relative; overflow: hidden; border: 1px solid #e5eaf0; border-radius: 20px; background: #fff; box-shadow: 0 10px 28px #06101e14; transition: transform .18s ease, box-shadow .18s ease; }
 .deal-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px #06101e1c; }
 .deal-card > a { display: block; height: 100%; }
-.deal-image { position: relative; height: auto; aspect-ratio: 4 / 3; background: #e2e8f0; }
+.deal-image { position: relative; display: grid; place-items: center; height: auto; aspect-ratio: 3 / 2; background: #e2e8f0; }
 .deal-image::after { content: ''; position: absolute; inset: auto 0 0; height: 38%; background: linear-gradient(180deg,transparent,#06101e33); pointer-events: none; }
-.deal-image img { width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease; }
+.deal-image img { width: 100%; height: 100%; object-fit: contain; transition: transform .35s ease; }
 .deal-card:hover .deal-image img { transform: scale(1.035); }
 .channel, .sponsored { position: absolute; z-index: 1; top: 12px; left: 12px; padding: 6px 9px; border-radius: 999px; color: #fff; background: #06101e; font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .sponsored { left: auto; right: 12px; color: #06101e; background: #d4af37; }
