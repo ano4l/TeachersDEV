@@ -16,7 +16,7 @@ const deals = [
   ['cafe-101-2', 'cafe-101', '$2 OFF Any Drink', 'Choose any handcrafted drink.', 'in_person', 'Coffee', 'One drink per educator per visit.', null, 200, true, false, false],
   ['booknook-15', 'booknook', '15% OFF Purchase', 'Save on books and educator gifts.', 'in_person', 'Retail', 'Excludes gift cards and special orders.', null, 750, false, false, false],
   ['teacher-tech-25', 'teacher-tech', '25% OFF Annual Plan', 'Access classroom resources online.', 'online', 'Online', 'New annual subscriptions only.', 'EDUCATOR25', 2500, true, false, false],
-  ['teacher-tech-giveaway', 'teacher-tech', 'Enter to Win a Classroom Toolkit', 'Enter for chances to win free meals, experiences, gift cards, and more.', 'online', 'Winners', 'One entry per verified educator.', null, 5000, false, false, true],
+  ['teacher-tech-giveaway', 'teacher-tech', 'Enter to Win a Classroom Toolkit', 'Enter for chances to win free meals, experiences, gift cards, and more.', 'online', 'Win', 'One entry per verified educator.', null, 5000, false, false, true],
 ]
 
 export async function seed() {
