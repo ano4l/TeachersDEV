@@ -10,7 +10,7 @@ type Card = { member_id: string; teacherName: string; verified: boolean; status:
 
 const GOLD = '#D4AF37', INK = '#0F172A'
 const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100)
-const LOCAL_IMAGES: Record<string, string> = { 'island-spice': '/Ember&Oak.jpeg', 'glow-beauty': '/LuxeTheory.jpeg', 'cafe-101': '/GoldenHourCoffee.jpeg', booknook: '/The Teacher Edit.jpeg', 'teacher-tech': '/SundaySupply.jpeg' }
+const LOCAL_IMAGES: Record<string, string> = { 'island-spice': '/Ember&Oak.jpeg', 'glow-beauty': '/LuxeTheory.jpeg', 'cafe-101': '/GoldenHourCoffee.jpeg', booknook: '/The Teacher Edit.jpeg', 'teacher-tech': '/SundaySupply.jpeg', 'district-social': '/DistrictSocial.jpeg', 'lounge-social': '/Lounge&Social.jpeg', 'skyline-auto-spa': '/SkylineAutoSpa.jpeg', 'vibes-juice-co': '/VibesJuiceCo.jpeg' }
 
 function Logo({ light = false }: { light?: boolean }) {
   return <Link to="/deals" className="brand" aria-label="TeachersVIP home"><img className="brand-mark" src="/teachersvip-logo.png" alt="" /><span className="brand-teachers" style={{ color: light ? '#fff' : INK }}>Teachers</span><span className="brand-vip">VIP</span></Link>

@@ -8,6 +8,10 @@ const businesses = [
   ['cafe-101', 'Golden Hour Coffee', 'Coffee', 'A neighbourhood coffee stop for smooth espresso, iced drinks, and a slow start to the day.', '/GoldenHourCoffee.jpeg', 'https://example.com', '0.4 mi', 'Open now · closes 6 PM', true, '44 Stanley Avenue, Milpark, Johannesburg', -26.18555, 28.01819],
   ['booknook', 'The Teacher Edit', 'Retail', 'A thoughtful collection of books, teacher gifts, and classroom essentials for the everyday educator.', '/The Teacher Edit.jpeg', 'https://example.com', '1.1 mi', 'Open now · closes 8 PM', true, '19 7th Street, Melville, Johannesburg', -26.17518, 28.00917],
   ['teacher-tech', 'Sunday Supply', 'Online', 'Practical digital classroom tools and educator resources designed to make teaching days run more smoothly.', '/SundaySupply.jpeg', 'https://example.com', null, null, null, null, null, null],
+  ['district-social', 'District Social', 'Dining', 'A relaxed neighbourhood social space for good food, easy conversation, and time well spent.', '/DistrictSocial.jpeg', 'https://example.com', '0.8 mi', 'Open now · closes 10 PM', true, '22 Keyes Avenue, Rosebank, Johannesburg', -26.1452, 28.0364],
+  ['lounge-social', 'Lounge & Social', 'Dining', 'A welcoming lounge for casual gatherings, shared plates, and after-work catch-ups.', '/Lounge&Social.jpeg', 'https://example.com', '0.9 mi', 'Open now · closes 10 PM', true, '7 4th Avenue, Parkhurst, Johannesburg', -26.1392, 28.0208],
+  ['skyline-auto-spa', 'Skyline Auto Spa', 'Services', 'A polished car-care experience for keeping your everyday drive looking its best.', '/SkylineAutoSpa.jpeg', 'https://example.com', '1.3 mi', 'Open now · closes 6 PM', true, '30 Republic Road, Randburg, Johannesburg', -26.1016, 28.0017],
+  ['vibes-juice-co', 'Vibes Juice Co', 'Dining', 'Fresh juices, bright blends, and easy nourishment for busy teaching days.', '/VibesJuiceCo.jpeg', 'https://example.com', '0.7 mi', 'Open now · closes 7 PM', true, '12 7th Street, Melville, Johannesburg', -26.1758, 28.0098],
 ]
 
 const deals = [
@@ -17,6 +21,10 @@ const deals = [
   ['booknook-15', 'booknook', '15% OFF Purchase', 'Save on books and educator gifts.', 'in_person', 'Retail', 'Excludes gift cards and special orders.', null, 750, false, false, false],
   ['teacher-tech-25', 'teacher-tech', '25% OFF Annual Plan', 'Access classroom resources online.', 'online', 'Online', 'New annual subscriptions only.', 'EDUCATOR25', 2500, true, false, false],
   ['teacher-tech-giveaway', 'teacher-tech', 'Enter to Win a Classroom Toolkit', 'Enter for chances to win free meals, experiences, gift cards, and more.', 'online', 'Win', 'One entry per verified educator.', null, 5000, false, false, true],
+  ['district-social-perk', 'district-social', 'Educator Partner Offer', 'Discover a social space made for easy meals, meet-ups, and time off.', 'in_person', 'Dining', 'Ask the business for current educator offer details.', null, 0, false, false, false],
+  ['lounge-social-perk', 'lounge-social', 'Educator Partner Offer', 'Settle in for a relaxed meal, shared plates, or an after-work catch-up.', 'in_person', 'Dining', 'Ask the business for current educator offer details.', null, 0, false, false, false],
+  ['skyline-auto-spa-perk', 'skyline-auto-spa', 'Educator Partner Offer', 'Give your car a polished finish with a considered local auto-care experience.', 'in_person', 'Services', 'Ask the business for current educator offer details.', null, 0, false, false, false],
+  ['vibes-juice-co-perk', 'vibes-juice-co', 'Educator Partner Offer', 'Find a bright, fresh pick-me-up for the school day.', 'in_person', 'Dining', 'Ask the business for current educator offer details.', null, 0, false, false, false],
 ]
 
 export async function seed() {
