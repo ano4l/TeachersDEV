@@ -74,7 +74,6 @@ h1, h2 { font-family: Oswald, sans-serif; }
 .back-link { color: #755a10; font-size: 13px; font-weight: 700; }
 .hero { position: relative; overflow: hidden; min-height: 210px; padding: 28px; margin-bottom: 22px; border-radius: 24px; color: #fff; background: linear-gradient(135deg,#06101e,#152946); box-shadow: 0 15px 35px #06101e29; }
 .hero-copy { position: relative; z-index: 1; align-self: center; }
-.hero::after { content: ''; position: absolute; width: 260px; height: 260px; right: -80px; top: -120px; border-radius: 50%; border: 50px solid #d4af3718; }
 .hero-copy > span { color: #f5d061; font-size: 11px; font-weight: 800; letter-spacing: 1.4px; }
 .hero h2 { margin: 8px 0 6px; font-size: clamp(30px,5vw,48px); line-height: .96; text-transform: uppercase; letter-spacing: 1px; }
 .hero p { margin: 0; color: #fff; }
@@ -105,9 +104,9 @@ h1, h2 { font-family: Oswald, sans-serif; }
 .deal-card { position: relative; overflow: hidden; border: 1px solid #e5eaf0; border-radius: 20px; background: #fff; box-shadow: 0 10px 28px #06101e14; transition: transform .18s ease, box-shadow .18s ease; }
 .deal-card:hover { transform: translateY(-3px); box-shadow: 0 16px 34px #06101e1c; }
 .deal-card > a { display: block; height: 100%; }
-.deal-image { position: relative; display: grid; place-items: center; height: auto; aspect-ratio: 3 / 2; background: #e2e8f0; }
+.deal-image { position: relative; display: grid; place-items: center; height: auto; aspect-ratio: 3 / 2; overflow: hidden; background: #e2e8f0; }
 .deal-image::after { content: ''; position: absolute; inset: auto 0 0; height: 38%; background: linear-gradient(180deg,transparent,#06101e33); pointer-events: none; }
-.deal-image img { width: 100%; height: 100%; object-fit: contain; transition: transform .35s ease; }
+.deal-image img { display: block; width: 100%; height: 100%; max-width: 100%; object-fit: contain; object-position: center; transition: transform .35s ease; }
 .deal-card:hover .deal-image img { transform: scale(1.035); }
 .channel, .sponsored { position: absolute; z-index: 1; top: 12px; left: 12px; padding: 6px 9px; border-radius: 999px; color: #fff; background: #06101e; font-size: 10px; font-weight: 800; text-transform: uppercase; }
 .sponsored { left: auto; right: 12px; color: #06101e; background: #d4af37; }

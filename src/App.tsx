@@ -20,7 +20,7 @@ function Field({ label, name, type = 'text', required, defaultValue, placeholder
 function Notice({ kind = 'info', children }: { kind?: 'info' | 'error' | 'success'; children: ReactNode }) { return <div className={`notice notice-${kind}`} role={kind === 'error' ? 'alert' : 'status'}>{children}</div> }
 function AuthFrame({ children, title, intro }: { children: ReactNode; title: string; intro: string }) { return <main className="auth-page"><section className="auth-card"><Logo light /><div className="shield">✓</div><h1>{title}</h1><p>{intro}</p>{children}<small>Free for educators. Always.</small></section></main> }
 
-const CITY_OPTIONS = ['Johannesburg, Gauteng', 'Cape Town, Western Cape', 'Durban, KwaZulu-Natal', 'Pretoria, Gauteng', 'Gqeberha, Eastern Cape', 'Bloemfontein, Free State', 'East London, Eastern Cape', 'Polokwane, Limpopo', 'Mbombela, Mpumalanga', 'Kimberley, Northern Cape', 'Maseru, Lesotho', 'Harare, Zimbabwe']
+const CITY_OPTIONS = ['Houston, Texas', 'Dallas, Texas', 'Austin, Texas', 'San Antonio, Texas', 'Fort Worth, Texas', 'El Paso, Texas', 'Arlington, Texas', 'Plano, Texas', 'Irving, Texas', 'Katy, Texas', 'Sugar Land, Texas', 'The Woodlands, Texas']
 
 function CityAutocomplete({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false)
