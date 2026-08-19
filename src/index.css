@@ -122,7 +122,7 @@ h1, h2 { font-family: Oswald, sans-serif; }
 .save.saved { color: #d4af37; }
 
 .deal-detail { display: grid; overflow: hidden; border-radius: 24px; background: #fff; box-shadow: 0 16px 45px #06101e1c; }
-.deal-detail > img { width: 100%; height: auto; min-height: 0; display: block; object-fit: contain; background: #eef2f7; }
+.deal-detail > img { width: 100%; height: auto; min-height: 0; display: block; object-fit: contain; object-position: center; background: radial-gradient(circle at 50% 35%,#fff,#eef2f7 78%); border-bottom: 1px solid #e2e8f0; }
 .detail-copy { display: grid; align-content: start; gap: 18px; padding: 24px; }
 .detail-copy h2 { margin: 0; font-size: 34px; text-transform: uppercase; }
 .detail-copy > p { margin: 0; color: #64748b; line-height: 1.6; }
@@ -200,7 +200,7 @@ h1, h2 { font-family: Oswald, sans-serif; }
   .nav-user span { font-weight: 700; }.nav-user small { color: #d4af37; }.nav-user button { margin-top: 8px; padding: 0; border: 0; color: #ffffffa8; background: none; text-align: left; cursor: pointer; }
   .app-main { min-width: 0; padding-bottom: 0; }.topbar { padding: 0 32px; }.topbar .brand { display: none; }.mobile-nav { display: none; }
   .page { padding: 38px 36px 60px; }.page-heading h1 { font-size: 34px; }.deal-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
-  .deal-detail { grid-template-columns: minmax(320px,.95fr) 1.05fr; }.deal-detail > img { height: auto; min-height: 0; align-self: start; object-fit: contain; }.detail-copy { padding: 38px; }
+  .deal-detail { grid-template-columns: minmax(320px,.95fr) 1.05fr; }.deal-detail > img { height: auto; min-height: 0; align-self: start; object-fit: contain; border-right: 1px solid #e2e8f0; border-bottom: 0; }.detail-copy { padding: 38px; }
   .profile-actions { grid-template-columns: repeat(2,1fr); }.partner-card, .verify-panel, .profile-form { padding: 34px; }
 }
 @media (min-width: 1300px) { .deal-grid { grid-template-columns: repeat(4,minmax(0,1fr)); } }
