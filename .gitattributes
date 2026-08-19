@@ -8,6 +8,9 @@
 public/teachersvip-logo.png -filter -diff -merge -text
 *.jpg                filter=lfs diff=lfs merge=lfs -text
 *.jpeg               filter=lfs diff=lfs merge=lfs -text
+# Railway builds do not pull Git LFS pointer files into the runtime image.
+# Keep the supplied public deal photos as ordinary repository blobs.
+public/*.jpeg        -filter -diff -merge
 *.gif                filter=lfs diff=lfs merge=lfs -text
 *.bmp                filter=lfs diff=lfs merge=lfs -text
 *.tiff               filter=lfs diff=lfs merge=lfs -text

@@ -3,11 +3,11 @@ import { createPool } from './pool.js'
 import { encrypt } from '../security.js'
 
 const businesses = [
-  ['island-spice', 'Island Spice', 'Dining', 'A warm Caribbean kitchen serving generous plates, bright flavours, and an educator-friendly welcome.', '/Ember&Oak.jpeg', 'https://example.com', '0.2 mi', 'Open now · closes 9 PM', true, '1 Fox Street, Ferreirasdorp, Johannesburg', -26.20491, 28.03136],
-  ['glow-beauty', 'Glow Beauty', 'Services', 'A full-service salon for considered hair, colour, and skincare appointments.', '/LuxeTheory.jpeg', 'https://example.com', '0.6 mi', 'Open now · closes 7 PM', true, '17 4th Avenue, Parkhurst, Johannesburg', -26.13954, 28.02042],
-  ['cafe-101', 'Cafe 101', 'Coffee', 'A neighbourhood coffee stop for smooth espresso, iced drinks, and a slow start to the day.', '/GoldenHourCoffee.jpeg', 'https://example.com', '0.4 mi', 'Open now · closes 6 PM', true, '44 Stanley Avenue, Milpark, Johannesburg', -26.18555, 28.01819],
-  ['booknook', 'BookNook', 'Retail', 'An independent bookshop with thoughtful reads, teacher gifts, and a welcoming reading corner.', '/The Teacher Edit.jpeg', 'https://example.com', '1.1 mi', 'Open now · closes 8 PM', true, '19 7th Street, Melville, Johannesburg', -26.17518, 28.00917],
-  ['teacher-tech', 'Teacher Tech Online', 'Online', 'Practical digital classroom tools and educator resources designed to make teaching days run more smoothly.', '/SundaySupply.jpeg', 'https://example.com', null, null, null, null, null, null],
+  ['island-spice', 'Ember & Oak', 'Dining', 'A warm, wood-fired kitchen serving generous plates, bright flavours, and an educator-friendly welcome.', '/Ember&Oak.jpeg', 'https://example.com', '0.2 mi', 'Open now · closes 9 PM', true, '1 Fox Street, Ferreirasdorp, Johannesburg', -26.20491, 28.03136],
+  ['glow-beauty', 'Luxe Theory', 'Services', 'A considered salon experience for hair, colour, and skincare appointments.', '/LuxeTheory.jpeg', 'https://example.com', '0.6 mi', 'Open now · closes 7 PM', true, '17 4th Avenue, Parkhurst, Johannesburg', -26.13954, 28.02042],
+  ['cafe-101', 'Golden Hour Coffee', 'Coffee', 'A neighbourhood coffee stop for smooth espresso, iced drinks, and a slow start to the day.', '/GoldenHourCoffee.jpeg', 'https://example.com', '0.4 mi', 'Open now · closes 6 PM', true, '44 Stanley Avenue, Milpark, Johannesburg', -26.18555, 28.01819],
+  ['booknook', 'The Teacher Edit', 'Retail', 'A thoughtful collection of books, teacher gifts, and classroom essentials for the everyday educator.', '/The Teacher Edit.jpeg', 'https://example.com', '1.1 mi', 'Open now · closes 8 PM', true, '19 7th Street, Melville, Johannesburg', -26.17518, 28.00917],
+  ['teacher-tech', 'Sunday Supply', 'Online', 'Practical digital classroom tools and educator resources designed to make teaching days run more smoothly.', '/SundaySupply.jpeg', 'https://example.com', null, null, null, null, null, null],
 ]
 
 const deals = [
