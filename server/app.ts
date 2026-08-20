@@ -291,7 +291,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
 
   app.get('/api/me/reported-uses', async request => {
     const user = requireUser(request)
-    const result = await db.query(`SELECT r.id,r.reported_at,r.estimated_savings_cents,d.title,b.name business_name FROM deal_use_reports r JOIN deals d ON d.id=r.deal_id JOIN businesses b ON b.id=d.business_id WHERE r.user_id=$1 ORDER BY r.reported_at DESC`, [user.id])
+    const result = await db.query(`SELECT r.id,r.deal_id,r.reported_at,r.estimated_savings_cents,d.title,b.name business_name FROM deal_use_reports r JOIN deals d ON d.id=r.deal_id JOIN businesses b ON b.id=d.business_id WHERE r.user_id=$1 ORDER BY r.reported_at DESC`, [user.id])
     return { reports: result.rows }
   })
 

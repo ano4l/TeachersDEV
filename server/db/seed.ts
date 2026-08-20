@@ -16,7 +16,7 @@ const businesses = [
 
 const deals = [
   ['island-spice-20', 'island-spice', '20% OFF Any Entrée', 'Save on any dine-in entrée.', 'in_person', 'Dining', 'Valid for verified educators. One offer per visit.', null, 500, true, false, false],
-  ['glow-beauty-10', 'glow-beauty', '10% OFF All Services', 'Save on salon and spa services.', 'in_person', 'Services', 'Appointment required. Excludes retail products.', null, 1200, false, true, false],
+  ['glow-beauty-10', 'glow-beauty', '15% OFF All Services', 'Save 15% on salon and spa services.', 'in_person', 'Services', 'Appointment required. Excludes retail products.', null, 1200, false, true, false],
   ['cafe-101-2', 'cafe-101', '$2 OFF Any Drink', 'Choose any handcrafted drink.', 'in_person', 'Coffee', 'One drink per educator per visit.', null, 200, true, false, false],
   ['booknook-15', 'booknook', '15% OFF Purchase', 'Save on books and educator gifts.', 'in_person', 'Retail', 'Excludes gift cards and special orders.', null, 750, false, false, false],
   ['teacher-tech-25', 'teacher-tech', '25% OFF Annual Plan', 'Access classroom resources online.', 'online', 'Online', 'New annual subscriptions only.', 'EDUCATOR25', 2500, true, false, false],

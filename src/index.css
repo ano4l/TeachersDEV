@@ -146,6 +146,8 @@ h1, h2 { font-family: Oswald, sans-serif; }
 .verify-panel > p, .verify-panel > small, .partner-card > p { color: #64748b; line-height: 1.6; }
 .dev-link { display: block; text-align: center; }
 .vip-card { min-height: 330px; display: flex; flex-direction: column; justify-content: space-between; padding: 26px; margin-bottom: 20px; border-radius: 25px; color: #fff; background: radial-gradient(circle at 80% 20%,#263d61,#06101e 62%); border: 1px solid #d4af3790; box-shadow: 0 25px 65px #06101e5c; }
+.card-deal { display: grid; gap: 16px; padding: 19px; margin-bottom: 20px; border: 1px solid #d4af3766; border-radius: 20px; background: #fffdf4; box-shadow: 0 10px 28px #06101e12; }
+.card-deal > div { display: grid; gap: 5px; }.card-deal small { color: #755a10; font-size: 10px; font-weight: 800; letter-spacing: 1.2px; }.card-deal h2 { margin: 0; font-size: 24px; }.card-deal strong { color: #755a10; }.card-deal p { margin: 4px 0 0; color: #64748b; font-size: 13px; line-height: 1.5; }.card-deal-used { border-color: #23865766; background: #effbf4; }.card-deal-used small { color: #187348; }.used-badge { display: inline-flex; align-items: center; gap: 6px; width: fit-content; padding: 9px 12px; border-radius: 999px; color: #187348; background: #d8f5e4; font-size: 12px; font-weight: 800; }
 .card-brand, .card-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; color: #d4af37; font-size: 11px; font-weight: 800; }
 .card-person { display: grid; gap: 5px; }
 .card-person small { color: #d4af37; font-size: 10px; letter-spacing: 1.2px; }
