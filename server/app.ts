@@ -231,7 +231,8 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     const userId = request.currentUser?.id ?? null
     const result = await db.query(`SELECT d.id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,
       b.id business_id,b.name business_name,b.description business_description,b.image_url,b.website_url,b.distance,b.hours,b.is_open,b.address,b.latitude,b.longitude,
-      EXISTS(SELECT 1 FROM saved_deals s WHERE s.deal_id=d.id AND s.user_id=$1) saved
+      EXISTS(SELECT 1 FROM saved_deals s WHERE s.deal_id=d.id AND s.user_id=$1) saved,
+      EXISTS(SELECT 1 FROM deal_use_reports r WHERE r.deal_id=d.id AND r.user_id=$1) used
       FROM deals d JOIN businesses b ON b.id=d.business_id
       WHERE d.published AND b.published AND ($2::text IS NULL OR d.category=$2) AND ($3::text IS NULL OR d.channel=$3)
       AND ($4::text IS NULL OR d.title ILIKE '%'||$4||'%' OR b.name ILIKE '%'||$4||'%')
@@ -277,7 +278,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
       if (!deal.rows[0]) throw Object.assign(new Error('Deal not found.'), { statusCode: 404 })
       const reportId = randomUUID()
       const inserted = await client.query(`INSERT INTO deal_use_reports(id,user_id,deal_id,idempotency_key,estimated_savings_cents) VALUES($1,$2,$3,$4,$5)
-        ON CONFLICT (user_id,idempotency_key) DO NOTHING RETURNING id`, [reportId, user.id, id, idempotencyKey, deal.rows[0].estimated_savings_cents])
+        ON CONFLICT DO NOTHING RETURNING id`, [reportId, user.id, id, idempotencyKey, deal.rows[0].estimated_savings_cents])
       if (inserted.rowCount) {
         await client.query(`INSERT INTO analytics_events(id,event_type,user_id,business_id,deal_id,metadata) VALUES($1,'reported_deal_use',$2,$3,$4,$5)`, [randomUUID(), user.id, deal.rows[0].business_id, id, JSON.stringify({ estimatedSavingsCents: deal.rows[0].estimated_savings_cents })])
         await client.query(`INSERT INTO analytics_events(id,event_type,user_id,business_id,deal_id,metadata) VALUES($1,'estimated_savings',$2,$3,$4,$5)`, [randomUUID(), user.id, deal.rows[0].business_id, id, JSON.stringify({ amountCents: deal.rows[0].estimated_savings_cents })])
