@@ -3,7 +3,7 @@ import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation, use
 import { BookmarkSimple, CheckCircle, Clock, Compass, Copy, Heart, IdentificationCard, MagnifyingGlass, MapPin, Question, ShieldCheck, Storefront, Tag, UserCircle } from '@phosphor-icons/react'
 import { api, del, patch, post } from './lib/api'
 
-type SessionUser = { id: string; personal_email: string; first_name: string; last_name: string; city: string; work_email: string | null; verified: boolean; is_superadmin?: boolean }
+type SessionUser = { id: string; personal_email: string; first_name: string; last_name: string; city: string; work_email: string | null; verified: boolean; is_superadmin: boolean }
 type Profile = SessionUser & { mobile: string | null; sms_consent: boolean; educator_verified_at: string | null; member_id: string; estimated_savings_cents: number; reported_uses: number }
 type Deal = { id: string; title: string; description: string; channel: 'in_person' | 'online'; category: string; restrictions: string; estimated_savings_cents: number; featured: boolean; sponsored: boolean; giveaway: boolean; business_id: string; business_name: string; business_description: string; image_url: string; website_url: string | null; distance: string | null; hours: string | null; is_open: boolean | null; address: string | null; latitude: number | null; longitude: number | null; saved?: boolean; used?: boolean }
 type Card = { member_id: string; teacherName: string; verified: boolean; status: string; walletStatus: 'available' | 'active' | 'failed' | 'pending' | 'not_configured'; walletDownloadUrl: string | null }
