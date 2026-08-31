@@ -182,10 +182,10 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
       try { return await query } catch (error) { app.log.warn({ error }, 'Optional admin dashboard query failed'); return fallback }
     }
     const [businesses, deals, members, uses, inquiries, audit] = await Promise.all([
-      db.query(`SELECT id,name,category,description,image_url,website_url,distance,hours,is_open,address,latitude,longitude,published FROM businesses ORDER BY name`),
-      db.query(`SELECT d.id,d.business_id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,d.image_url,d.published,d.starts_at,d.ends_at,d.created_at,b.name business_name FROM deals d JOIN businesses b ON b.id=d.business_id ORDER BY d.created_at DESC`),
-      db.query(`SELECT COUNT(*)::int count FROM users`),
-      db.query(`SELECT COUNT(*)::int count FROM deal_use_reports`),
+      optionalQuery(db.query(`SELECT id,name,category,description,image_url,website_url,distance,hours,is_open,address,latitude,longitude,published FROM businesses ORDER BY name`), { rows: [] } as { rows: unknown[] }),
+      optionalQuery(db.query(`SELECT d.id,d.business_id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,d.image_url,d.published,d.starts_at,d.ends_at,d.created_at,b.name business_name FROM deals d JOIN businesses b ON b.id=d.business_id ORDER BY d.created_at DESC`), { rows: [] } as { rows: unknown[] }),
+      optionalQuery(db.query(`SELECT COUNT(*)::int count FROM users`), { rows: [{ count: 0 }] } as { rows: { count: number }[] }),
+      optionalQuery(db.query(`SELECT COUNT(*)::int count FROM deal_use_reports`), { rows: [{ count: 0 }] } as { rows: { count: number }[] }),
       optionalQuery(db.query(`SELECT id,business_name,business_email,proposed_deal,status,created_at FROM partner_inquiries ORDER BY created_at DESC LIMIT 50`), { rows: [] } as { rows: unknown[] }),
       optionalQuery(db.query(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.metadata,a.created_at,u.first_name,u.last_name FROM admin_audit_log a JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 50`), { rows: [] } as { rows: unknown[] }),
     ])
