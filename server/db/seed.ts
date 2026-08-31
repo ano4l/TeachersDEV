@@ -1,9 +1,8 @@
 import { getConfig } from '../config.js'
 import { createPool } from './pool.js'
-import { encrypt, hashPassword } from '../security.js'
+import { encrypt } from '../security.js'
+import { ensureTestAdmin, TEST_ADMIN_EMAIL, TEST_ADMIN_PASSWORD } from './test-admin.js'
 
-export const TEST_ADMIN_EMAIL = 'admin@teachersvip.local'
-export const TEST_ADMIN_PASSWORD = 'TeachersVIP-Admin-2026!'
 
 const businesses = [
   ['island-spice', 'Ember & Oak', 'Dining', 'A warm, wood-fired kitchen serving generous plates, bright flavours, and an educator-friendly welcome.', '/Ember&Oak.jpeg', 'https://example.com', 'Houston, TX', 'Open now · closes 9 PM', true, 'Houston, Texas', 29.7604, -95.3698],
@@ -44,15 +43,8 @@ export async function seed() {
       await pool.query(`INSERT INTO deals(id,business_id,title,description,channel,category,restrictions,promo_code_encrypted,estimated_savings_cents,featured,sponsored,giveaway)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, description=EXCLUDED.description, category=EXCLUDED.category, restrictions=EXCLUDED.restrictions, giveaway=EXCLUDED.giveaway`, row)
     }
-    // Temporary launch-test account. Replace this with a managed admin bootstrap before public launch.
-    if (true) {
-      const adminId = '00000000-0000-4000-8000-000000000001'
-      await pool.query(`INSERT INTO users(id,personal_email,password_hash,first_name,last_name,city,educator_verified_at)
-        VALUES($1,$2,$3,'Platform','Admin','Houston, Texas',now())
-        ON CONFLICT (personal_email) DO UPDATE SET password_hash=EXCLUDED.password_hash,educator_verified_at=COALESCE(users.educator_verified_at,now()),updated_at=now()`, [adminId, TEST_ADMIN_EMAIL, await hashPassword(TEST_ADMIN_PASSWORD)])
-      await pool.query(`INSERT INTO member_cards(id,user_id,member_id) VALUES($1,$2,'TVIP-TESTADMIN') ON CONFLICT (user_id) DO NOTHING`, ['00000000-0000-4000-8000-000000000002', adminId])
-      console.log(`Test superadmin ready: ${TEST_ADMIN_EMAIL}`)
-    }
+    await ensureTestAdmin(pool)
+    console.log(`Test superadmin ready: ${TEST_ADMIN_EMAIL}`)
   } finally { await pool.end() }
 }
 
