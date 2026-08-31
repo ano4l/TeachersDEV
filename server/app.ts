@@ -101,6 +101,15 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     await db.query('INSERT INTO sessions(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,now()+interval \'30 days\')', [randomUUID(), userId, tokenHash(token)])
     reply.setCookie(SESSION_COOKIE, token, { httpOnly: true, secure: config.NODE_ENV === 'production', sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 30 })
   }
+  const publicOrigin = (request: FastifyRequest) => {
+    const configured = new URL(config.APP_URL).origin
+    if (config.NODE_ENV === 'production' && configured.includes('localhost')) {
+      const host = String(request.headers['x-forwarded-host'] ?? request.headers.host ?? '').split(',')[0]!.trim()
+      const protocol = String(request.headers['x-forwarded-proto'] ?? request.protocol).split(',')[0]!.trim()
+      if (host) return `${protocol}://${host}`
+    }
+    return configured
+  }
 
   app.get('/health/live', async () => ({ status: 'ok' }))
   app.get('/health/ready', async (_request, reply) => {
@@ -235,7 +244,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     const { workEmail } = parse(z.object({ workEmail: z.email().transform(v => v.toLowerCase()) }), request.body)
     const token = randomToken()
     await db.query('INSERT INTO educator_verifications(id,user_id,work_email,token_hash,expires_at) VALUES($1,$2,$3,$4,now()+interval \'30 minutes\')', [randomUUID(), user.id, workEmail, tokenHash(token)])
-    const verificationUrl = `${config.APP_URL}/verify?token=${encodeURIComponent(token)}`
+    const verificationUrl = `${publicOrigin(request)}/verify?token=${encodeURIComponent(token)}`
     if (resend) {
       const emailLogo = readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../public/teachersvip-logo.png'))
       const { error } = await resend.emails.send({ from: config.RESEND_FROM_EMAIL, to: workEmail, subject: 'Verify your TeachersVIP educator email', html: verificationEmailHtml(verificationUrl), text: `Verify your educator email\n\nConfirm your email to continue to your personalized TeachersVIP card and educator-only offers. This secure link expires in 30 minutes:\n\n${verificationUrl}\n\nIf you did not request this email, you can safely ignore it.\n\nFree for educators. Always.`, attachments: [{ filename: 'teachersvip-logo.png', content: emailLogo, contentType: 'image/png', contentId: 'teachersvip-logo' }] })
@@ -243,8 +252,8 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
         app.log.error({ resendError: error }, 'Resend rejected the verification email')
         throw Object.assign(new Error('The verification email could not be sent. Please try again shortly.'), { statusCode: 502 })
       }
-    } else if (config.NODE_ENV === 'development') app.log.info({ verificationUrl }, 'Resend is not configured; development verification URL')
-    return { ok: true, ...(config.NODE_ENV === 'development' && !resend ? { verificationUrl } : {}) }
+    } else app.log.warn({ verificationUrl }, 'Resend is not configured; returning a temporary verification URL for testing')
+    return { ok: true, ...(!resend ? { verificationUrl } : {}) }
   })
 
   app.post('/api/verification/confirm', async (request, reply) => {
