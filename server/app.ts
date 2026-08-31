@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import Fastify, { type FastifyRequest } from 'fastify'
@@ -407,8 +407,8 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     reply.code(error.statusCode ?? 500).send({ error: error.statusCode ? error.message : 'Something went wrong.' })
   })
 
-  if (config.NODE_ENV === 'production') {
-    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist')
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../dist')
+  if (config.NODE_ENV === 'production' || existsSync(root)) {
     app.register(fastifyStatic, { root, wildcard: false })
     app.setNotFoundHandler((request, reply) => request.url.startsWith('/api/') ? reply.code(404).send({ error: 'Not found.' }) : reply.sendFile('index.html'))
   }
