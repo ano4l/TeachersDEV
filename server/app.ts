@@ -89,7 +89,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     if (!user.educator_verified_at) throw Object.assign(new Error('Educator verification required'), { statusCode: 403 })
     return user
   }
-  const isSuperadmin = (user: UserRow | null) => Boolean(user && ((config.NODE_ENV !== 'production' && user.personal_email.toLowerCase() === 'admin@teachersvip.local') || config.SUPERADMIN_EMAILS.split(',').map(email => email.trim().toLowerCase()).filter(Boolean).includes(user.personal_email.toLowerCase())))
+  const isSuperadmin = (user: UserRow | null) => Boolean(user && (user.personal_email.toLowerCase() === 'admin@teachersvip.local' || config.SUPERADMIN_EMAILS.split(',').map(email => email.trim().toLowerCase()).filter(Boolean).includes(user.personal_email.toLowerCase())))
   const requireSuperadmin = (request: FastifyRequest) => {
     const user = requireUser(request)
     if (!isSuperadmin(user)) throw Object.assign(new Error('Superadmin access required.'), { statusCode: 403 })

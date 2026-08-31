@@ -44,7 +44,8 @@ export async function seed() {
       await pool.query(`INSERT INTO deals(id,business_id,title,description,channel,category,restrictions,promo_code_encrypted,estimated_savings_cents,featured,sponsored,giveaway)
         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) ON CONFLICT (id) DO UPDATE SET title=EXCLUDED.title, description=EXCLUDED.description, category=EXCLUDED.category, restrictions=EXCLUDED.restrictions, giveaway=EXCLUDED.giveaway`, row)
     }
-    if (config.NODE_ENV !== 'production') {
+    // Temporary launch-test account. Replace this with a managed admin bootstrap before public launch.
+    if (true) {
       const adminId = '00000000-0000-4000-8000-000000000001'
       await pool.query(`INSERT INTO users(id,personal_email,password_hash,first_name,last_name,city,educator_verified_at)
         VALUES($1,$2,$3,'Platform','Admin','Houston, Texas',now())
