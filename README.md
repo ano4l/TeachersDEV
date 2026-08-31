@@ -10,6 +10,8 @@ TeachersVIP is a responsive web application for verified educators to discover o
 - The personalized web VIP card is complete and remains the primary card.
 - Pass2U automation is available when its API key and model configuration are supplied. The in-app card remains available if the provider is not configured.
 - Deal use is self-reported. It is never represented as a confirmed purchase.
+- A configured superadmin can manage businesses and publish, hide, and schedule deals from `/admin`; public Discover reads only currently active published records.
+- Password recovery is available through the account email when Resend is configured.
 - There is no business PIN, NFC redemption, geolocation check-in, POS integration, receipt upload, loyalty counter, Connected Passes feature, or public business onboarding.
 
 ## Local development
@@ -32,8 +34,13 @@ Set:
 - `RESEND_API_KEY`
 - `RESEND_FROM_EMAIL`
 - `APP_URL`
+- `SUPERADMIN_EMAILS` — comma-separated personal account emails allowed to use the superadmin dashboard.
 
 `RESEND_FROM_EMAIL` must use a sender/domain that is verified in Resend before production email delivery will work.
+
+Create the superadmin account through the normal account flow using an email listed in `SUPERADMIN_EMAILS`. The server, not the browser, enforces this allowlist. Never put a superadmin email list in a `VITE_` variable.
+
+For local development and test environments only, `pnpm db:seed` creates `admin@teachersvip.local` with password `TeachersVIP-Admin-2026!`. Do not use this account or password in production; production superadmin access requires an explicitly configured `SUPERADMIN_EMAILS` value.
 
 ## Pass2U automation
 

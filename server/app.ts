@@ -28,7 +28,7 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
   if (!result.success) {
     const issue = result.error.issues[0]
     const field = String(issue?.path[0] ?? '')
-    const labels: Record<string, string> = { firstName: 'First name', lastName: 'Last name', personalEmail: 'Personal email', workEmail: 'School/work email', mobile: 'Mobile number', city: 'City', password: 'Password', businessName: 'Business name', businessEmail: 'Business email', proposedDeal: 'Proposed deal' }
+    const labels: Record<string, string> = { firstName: 'First name', lastName: 'Last name', personalEmail: 'Personal email', workEmail: 'School/work email', mobile: 'Mobile number', city: 'City', password: 'Password', businessName: 'Business name', businessEmail: 'Business email', proposedDeal: 'Proposed deal', email: 'Email' }
     const label = labels[field] ?? 'This field'
     let message = `${label} is invalid.`
     if (issue?.code === 'too_small') message = `${label} must contain at least ${issue.minimum} characters.`
@@ -42,6 +42,10 @@ function parse<T>(schema: z.ZodType<T>, value: unknown): T {
 
 function verificationEmailHtml(verificationUrl: string) {
   return `<!doctype html><html><body style="margin:0;padding:0;background:#eef2f7;font-family:Arial,sans-serif;color:#0f172a"><div style="display:none;max-height:0;overflow:hidden">Verify your educator email to unlock TeachersVIP deals and your personalized VIP card.</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef2f7"><tr><td align="center" style="padding:32px 14px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;overflow:hidden;border-radius:24px;background:#ffffff;box-shadow:0 18px 48px rgba(6,16,30,.16)"><tr><td align="center" style="padding:30px 24px 25px;background:#06101e;border-bottom:4px solid #d4af37"><img src="cid:teachersvip-logo" width="92" alt="TeachersVIP" style="display:block;width:92px;max-width:100%;height:auto;margin:0 auto 13px"><div style="font-size:25px;font-weight:800;letter-spacing:-.5px;color:#ffffff">Teachers<span style="color:#d4af37">VIP</span></div><div style="margin-top:7px;font-size:11px;font-weight:700;letter-spacing:1.6px;color:#f5d061;text-transform:uppercase">Exclusive educator perks</div></td></tr><tr><td style="padding:38px 34px 32px"><div style="font-size:12px;font-weight:800;letter-spacing:1.4px;color:#8a6d1a;text-transform:uppercase">One quick step</div><h1 style="margin:8px 0 14px;font-size:30px;line-height:1.15;color:#06101e">Verify your educator email</h1><p style="margin:0 0 24px;font-size:16px;line-height:1.65;color:#526174">Confirm this email address to continue to your personalized TeachersVIP card and educator-only offers.</p><table role="presentation" cellspacing="0" cellpadding="0" width="100%"><tr><td align="center" bgcolor="#d4af37" style="border-radius:999px"><a href="${verificationUrl}" style="display:block;padding:16px 24px;color:#06101e;font-size:16px;font-weight:800;text-decoration:none">Verify educator email</a></td></tr></table><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:24px;border-radius:14px;background:#f8fafc"><tr><td style="padding:16px 18px;font-size:13px;line-height:1.55;color:#526174"><strong style="color:#06101e">This link expires in 30 minutes.</strong><br>Your school/work email is used for educator verification only.</td></tr></table><p style="margin:24px 0 7px;font-size:12px;line-height:1.5;color:#718096">If the button does not work, copy and paste this link into your browser:</p><p style="margin:0;word-break:break-all;font-size:11px;line-height:1.5;color:#8a6d1a"><a href="${verificationUrl}" style="color:#8a6d1a">${verificationUrl}</a></p></td></tr><tr><td align="center" style="padding:22px;background:#f8fafc;border-top:1px solid #e2e8f0;font-size:12px;line-height:1.6;color:#718096">If you did not request this email, you can safely ignore it.<br><strong style="color:#06101e">Free for educators. Always.</strong></td></tr></table></td></tr></table></body></html>`
+}
+
+function passwordResetEmailHtml(resetUrl: string) {
+  return `<!doctype html><html><body style="font-family:Arial,sans-serif;color:#0f172a;padding:28px"><h1>Reset your TeachersVIP password</h1><p>Use the secure link below to choose a new password. This link expires in 30 minutes.</p><p><a href="${resetUrl}">Reset password</a></p><p>If you did not request this, you can safely ignore this email.</p></body></html>`
 }
 
 export function buildApp({ config, db }: { config: Config; db: DbPool }) {
@@ -85,6 +89,12 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     if (!user.educator_verified_at) throw Object.assign(new Error('Educator verification required'), { statusCode: 403 })
     return user
   }
+  const isSuperadmin = (user: UserRow | null) => Boolean(user && ((config.NODE_ENV !== 'production' && user.personal_email.toLowerCase() === 'admin@teachersvip.local') || config.SUPERADMIN_EMAILS.split(',').map(email => email.trim().toLowerCase()).filter(Boolean).includes(user.personal_email.toLowerCase())))
+  const requireSuperadmin = (request: FastifyRequest) => {
+    const user = requireUser(request)
+    if (!isSuperadmin(user)) throw Object.assign(new Error('Superadmin access required.'), { statusCode: 403 })
+    return user
+  }
 
   async function createSession(reply: any, userId: string) {
     const token = randomToken()
@@ -126,6 +136,37 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     return { ok: true }
   })
 
+  app.post('/api/auth/forgot-password', { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } }, async request => {
+    const { email } = parse(z.object({ email: z.email().transform(v => v.toLowerCase()) }), request.body)
+    const result = await db.query<{ id: string; personal_email: string }>('SELECT id,personal_email FROM users WHERE personal_email=$1', [email])
+    const user = result.rows[0]
+    if (!user) return { ok: true }
+    const token = randomToken()
+    await db.query('INSERT INTO password_resets(id,user_id,token_hash,expires_at) VALUES($1,$2,$3,now()+interval \'30 minutes\')', [randomUUID(), user.id, tokenHash(token)])
+    const resetUrl = `${config.APP_URL}/reset-password?token=${encodeURIComponent(token)}`
+    if (resend) {
+      const { error } = await resend.emails.send({ from: config.RESEND_FROM_EMAIL, to: user.personal_email, subject: 'Reset your TeachersVIP password', html: passwordResetEmailHtml(resetUrl), text: `Reset your TeachersVIP password\n\nThis secure link expires in 30 minutes:\n\n${resetUrl}` })
+      if (error) throw Object.assign(new Error('The password reset email could not be sent. Please try again shortly.'), { statusCode: 502 })
+    } else if (config.NODE_ENV === 'development') app.log.info({ resetUrl }, 'Resend is not configured; development password reset URL')
+    return { ok: true, ...(config.NODE_ENV === 'development' && !resend ? { resetUrl } : {}) }
+  })
+
+  app.post('/api/auth/reset-password', async request => {
+    const body = parse(z.object({ token: z.string().min(20), password: z.string().min(10).max(128) }), request.body)
+    const client = await db.connect()
+    try {
+      await client.query('BEGIN')
+      const result = await client.query<{ id: string; user_id: string }>('SELECT id,user_id FROM password_resets WHERE token_hash=$1 AND consumed_at IS NULL AND expires_at>now() FOR UPDATE', [tokenHash(body.token)])
+      const reset = result.rows[0]
+      if (!reset) throw Object.assign(new Error('This password reset link is invalid or expired.'), { statusCode: 400 })
+      await client.query('UPDATE users SET password_hash=$1,updated_at=now() WHERE id=$2', [await hashPassword(body.password), reset.user_id])
+      await client.query('UPDATE password_resets SET consumed_at=now() WHERE id=$1', [reset.id])
+      await client.query('UPDATE sessions SET revoked_at=now() WHERE user_id=$1 AND revoked_at IS NULL', [reset.user_id])
+      await client.query('COMMIT')
+      return { ok: true }
+    } catch (error) { await client.query('ROLLBACK'); throw error } finally { client.release() }
+  })
+
   app.post('/api/auth/sign-out', async (request, reply) => {
     const raw = request.cookies[SESSION_COOKIE]
     if (raw) await db.query('UPDATE sessions SET revoked_at=now() WHERE token_hash=$1', [tokenHash(raw)])
@@ -133,7 +174,58 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     return { ok: true }
   })
 
-  app.get('/api/auth/session', async request => ({ user: request.currentUser ? { ...request.currentUser, verified: Boolean(request.currentUser.educator_verified_at) } : null }))
+  app.get('/api/auth/session', async request => ({ user: request.currentUser ? { ...request.currentUser, verified: Boolean(request.currentUser.educator_verified_at), is_superadmin: isSuperadmin(request.currentUser) } : null }))
+
+  app.get('/api/admin/overview', async request => {
+    const admin = requireSuperadmin(request)
+    const [businesses, deals, members, uses, inquiries, audit] = await Promise.all([
+      db.query(`SELECT id,name,category,description,image_url,website_url,distance,hours,is_open,address,latitude,longitude,published FROM businesses ORDER BY name`),
+      db.query(`SELECT d.id,d.business_id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,d.published,d.starts_at,d.ends_at,d.created_at,b.name business_name FROM deals d JOIN businesses b ON b.id=d.business_id ORDER BY d.created_at DESC`),
+      db.query(`SELECT COUNT(*)::int count FROM users`),
+      db.query(`SELECT COUNT(*)::int count FROM deal_use_reports`),
+      db.query(`SELECT id,business_name,business_email,proposed_deal,status,created_at FROM partner_inquiries ORDER BY created_at DESC LIMIT 50`),
+      db.query(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.metadata,a.created_at,u.first_name,u.last_name FROM admin_audit_log a JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 50`),
+    ])
+    return { businesses: businesses.rows, deals: deals.rows, inquiries: inquiries.rows, audit: audit.rows, metrics: { members: members.rows[0].count, uses: uses.rows[0].count }, adminEmail: admin.personal_email }
+  })
+
+  app.post('/api/admin/businesses', async request => {
+    requireSuperadmin(request)
+    const body = parse(z.object({ id: z.string().trim().regex(/^[a-z0-9-]+$/).max(80), name: z.string().trim().min(2).max(140), category: z.string().trim().min(2).max(60), description: z.string().trim().min(5).max(1000), imageUrl: z.string().trim().min(1).max(500), websiteUrl: z.url().nullable().optional(), distance: z.string().trim().max(120).nullable().optional(), hours: z.string().trim().max(120).nullable().optional(), isOpen: z.boolean().nullable().optional(), address: z.string().trim().max(200).nullable().optional(), latitude: z.number().min(-90).max(90).nullable().optional(), longitude: z.number().min(-180).max(180).nullable().optional() }), request.body)
+    const result = await db.query(`INSERT INTO businesses(id,name,category,description,image_url,website_url,distance,hours,is_open,address,latitude,longitude) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, [body.id, body.name, body.category, body.description, body.imageUrl, body.websiteUrl || null, body.distance || null, body.hours || null, body.isOpen ?? null, body.address || null, body.latitude ?? null, body.longitude ?? null])
+    await db.query(`INSERT INTO admin_audit_log(id,user_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'created','business',$3,$4)`, [randomUUID(), request.currentUser!.id, result.rows[0].id, JSON.stringify({ name: body.name })])
+    return { ok: true }
+  })
+
+  app.patch('/api/admin/businesses/:id', async request => {
+    requireSuperadmin(request)
+    const { id } = parse(z.object({ id: z.string().min(1) }), request.params)
+    const body = parse(z.object({ name: z.string().trim().min(2).max(140).optional(), category: z.string().trim().min(2).max(60).optional(), description: z.string().trim().min(5).max(1000).optional(), imageUrl: z.string().trim().min(1).max(500).optional(), websiteUrl: z.url().nullable().optional(), distance: z.string().trim().max(120).nullable().optional(), hours: z.string().trim().max(120).nullable().optional(), isOpen: z.boolean().nullable().optional(), address: z.string().trim().max(200).nullable().optional(), published: z.boolean().optional() }).refine(value => Object.keys(value).length > 0), request.body)
+    const mappings: Record<string, string> = { name: 'name', category: 'category', description: 'description', imageUrl: 'image_url', websiteUrl: 'website_url', distance: 'distance', hours: 'hours', isOpen: 'is_open', address: 'address', published: 'published' }
+    const fields = Object.entries(body).filter(([, value]) => value !== undefined)
+    await db.query(`UPDATE businesses SET ${fields.map(([field], index) => `${mappings[field]}=$${index + 1}`).join(',')} WHERE id=$${fields.length + 1}`, [...fields.map(([, value]) => value), id])
+    await db.query(`INSERT INTO admin_audit_log(id,user_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'updated','business',$3,$4)`, [randomUUID(), request.currentUser!.id, id, JSON.stringify(Object.fromEntries(fields))])
+    return { ok: true }
+  })
+
+  app.post('/api/admin/deals', async request => {
+    requireSuperadmin(request)
+    const body = parse(z.object({ id: z.string().trim().regex(/^[a-z0-9-]+$/).max(100), businessId: z.string().trim().min(1).max(80), title: z.string().trim().min(2).max(160), description: z.string().trim().min(5).max(1000), channel: z.enum(['in_person', 'online']), category: z.string().trim().min(2).max(60), restrictions: z.string().trim().min(2).max(1000), promoCode: z.string().trim().max(200).optional(), estimatedSavingsCents: z.number().int().min(0).max(1000000), featured: z.boolean().default(false), sponsored: z.boolean().default(false), giveaway: z.boolean().default(false), startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional() }), request.body)
+    await db.query(`INSERT INTO deals(id,business_id,title,description,channel,category,restrictions,promo_code_encrypted,estimated_savings_cents,featured,sponsored,giveaway,published,starts_at,ends_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14)`, [body.id, body.businessId, body.title, body.description, body.channel, body.category, body.restrictions, body.promoCode ? encrypt(body.promoCode, config.DATA_ENCRYPTION_KEY) : null, body.estimatedSavingsCents, body.featured, body.sponsored, body.giveaway, body.startsAt || null, body.endsAt || null])
+    await db.query(`INSERT INTO admin_audit_log(id,user_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'created','deal',$3,$4)`, [randomUUID(), request.currentUser!.id, body.id, JSON.stringify({ businessId: body.businessId, title: body.title })])
+    return { ok: true }
+  })
+
+  app.patch('/api/admin/deals/:id', async request => {
+    requireSuperadmin(request)
+    const { id } = parse(z.object({ id: z.string().min(1) }), request.params)
+    const body = parse(z.object({ published: z.boolean().optional(), featured: z.boolean().optional(), sponsored: z.boolean().optional(), title: z.string().trim().min(2).max(160).optional(), description: z.string().trim().min(5).max(1000).optional(), restrictions: z.string().trim().min(2).max(1000).optional(), estimatedSavingsCents: z.number().int().min(0).max(1000000).optional(), startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional() }).refine(value => Object.keys(value).length > 0), request.body)
+    const mappings: Record<string, string> = { published: 'published', featured: 'featured', sponsored: 'sponsored', title: 'title', description: 'description', restrictions: 'restrictions', estimatedSavingsCents: 'estimated_savings_cents', startsAt: 'starts_at', endsAt: 'ends_at' }
+    const fields = Object.entries(body).filter(([, value]) => value !== undefined)
+    await db.query(`UPDATE deals SET ${fields.map(([field], index) => `${mappings[field]}=$${index + 1}`).join(',')} WHERE id=$${fields.length + 1}`, [...fields.map(([, value]) => value), id])
+    await db.query(`INSERT INTO admin_audit_log(id,user_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'updated','deal',$3,$4)`, [randomUUID(), request.currentUser!.id, id, JSON.stringify(Object.fromEntries(fields))])
+    return { ok: true }
+  })
 
   app.post('/api/verification/send', { config: { rateLimit: { max: 4, timeWindow: '15 minutes' } } }, async request => {
     const user = requireUser(request)
@@ -234,7 +326,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
       EXISTS(SELECT 1 FROM saved_deals s WHERE s.deal_id=d.id AND s.user_id=$1) saved,
       EXISTS(SELECT 1 FROM deal_use_reports r WHERE r.deal_id=d.id AND r.user_id=$1) used
       FROM deals d JOIN businesses b ON b.id=d.business_id
-      WHERE d.published AND b.published AND ($2::text IS NULL OR d.category=$2) AND ($3::text IS NULL OR d.channel=$3)
+      WHERE d.published AND b.published AND (d.starts_at IS NULL OR d.starts_at<=now()) AND (d.ends_at IS NULL OR d.ends_at>now()) AND ($2::text IS NULL OR d.category=$2) AND ($3::text IS NULL OR d.channel=$3)
       AND ($4::text IS NULL OR d.title ILIKE '%'||$4||'%' OR b.name ILIKE '%'||$4||'%')
       AND (NOT $5::boolean OR EXISTS(SELECT 1 FROM saved_deals s WHERE s.deal_id=d.id AND s.user_id=$1))
       ORDER BY d.featured DESC,d.sponsored DESC,b.name`, [userId, query.category ?? null, query.channel ?? null, query.q ?? null, query.saved ?? false])
@@ -245,7 +337,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     const { id } = parse(z.object({ id: z.string() }), request.params)
     const result = await db.query(`SELECT d.id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,
       b.id business_id,b.name business_name,b.description business_description,b.image_url,b.website_url,b.distance,b.hours,b.is_open,b.address,b.latitude,b.longitude
-      FROM deals d JOIN businesses b ON b.id=d.business_id WHERE d.id=$1 AND d.published AND b.published`, [id])
+      FROM deals d JOIN businesses b ON b.id=d.business_id WHERE d.id=$1 AND d.published AND b.published AND (d.starts_at IS NULL OR d.starts_at<=now()) AND (d.ends_at IS NULL OR d.ends_at>now())`, [id])
     if (!result.rows[0]) return reply.code(404).send({ error: 'Deal not found.' })
     return { deal: result.rows[0] }
   })
@@ -261,7 +353,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
 
   app.post('/api/deals/:id/reveal-code', async request => {
     const user = requireVerified(request); const { id } = parse(z.object({ id: z.string() }), request.params)
-    const result = await db.query<{ promo_code_encrypted: string | null; channel: string; business_id: string }>('SELECT promo_code_encrypted,channel,business_id FROM deals WHERE id=$1 AND published', [id])
+    const result = await db.query<{ promo_code_encrypted: string | null; channel: string; business_id: string }>('SELECT promo_code_encrypted,channel,business_id FROM deals WHERE id=$1 AND published AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>now())', [id])
     const deal = result.rows[0]
     if (!deal || deal.channel !== 'online' || !deal.promo_code_encrypted) throw Object.assign(new Error('No promotional code is available for this deal.'), { statusCode: 404 })
     await db.query('INSERT INTO analytics_events(id,event_type,user_id,business_id,deal_id) VALUES($1,$2,$3,$4,$5)', [randomUUID(), 'promo_code_reveal', user.id, deal.business_id, id])
@@ -274,7 +366,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     const client = await db.connect()
     try {
       await client.query('BEGIN')
-      const deal = await client.query<{ estimated_savings_cents: number; business_id: string }>('SELECT estimated_savings_cents,business_id FROM deals WHERE id=$1 AND published', [id])
+      const deal = await client.query<{ estimated_savings_cents: number; business_id: string }>('SELECT estimated_savings_cents,business_id FROM deals WHERE id=$1 AND published AND (starts_at IS NULL OR starts_at<=now()) AND (ends_at IS NULL OR ends_at>now())', [id])
       if (!deal.rows[0]) throw Object.assign(new Error('Deal not found.'), { statusCode: 404 })
       const reportId = randomUUID()
       const inserted = await client.query(`INSERT INTO deal_use_reports(id,user_id,deal_id,idempotency_key,estimated_savings_cents) VALUES($1,$2,$3,$4,$5)

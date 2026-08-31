@@ -9,6 +9,7 @@ const schema = z.object({
   DATA_ENCRYPTION_KEY: z.string().regex(/^[a-fA-F0-9]{64}$/),
   RESEND_API_KEY: z.string().optional(),
   RESEND_FROM_EMAIL: z.string().default('TeachersVIP <verification@example.com>'),
+  SUPERADMIN_EMAILS: z.string().default(''),
   PASS2U_API_KEY: z.string().min(20).optional(),
   PASS2U_MODEL_ID: z.string().min(1).optional(),
   PASS2U_MEMBER_NAME_FIELD: z.string().default('name'),
