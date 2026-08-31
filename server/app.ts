@@ -49,7 +49,7 @@ function passwordResetEmailHtml(resetUrl: string) {
 }
 
 export function buildApp({ config, db }: { config: Config; db: DbPool }) {
-  const app = Fastify({ logger: { redact: ['req.headers.cookie', 'req.body.password', 'req.body.promoCode'] }, trustProxy: true })
+  const app = Fastify({ bodyLimit: 4 * 1024 * 1024, logger: { redact: ['req.headers.cookie', 'req.body.password', 'req.body.promoCode', 'req.body.imageUrl'] }, trustProxy: true })
   const resend = config.RESEND_API_KEY ? new Resend(config.RESEND_API_KEY) : null
   const pass2u = createPass2UClient(config)
 
@@ -178,13 +178,16 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
 
   app.get('/api/admin/overview', async request => {
     const admin = requireSuperadmin(request)
+    const optionalQuery = async <T extends { rows: unknown[] }>(query: Promise<T>, fallback: T) => {
+      try { return await query } catch (error) { app.log.warn({ error }, 'Optional admin dashboard query failed'); return fallback }
+    }
     const [businesses, deals, members, uses, inquiries, audit] = await Promise.all([
       db.query(`SELECT id,name,category,description,image_url,website_url,distance,hours,is_open,address,latitude,longitude,published FROM businesses ORDER BY name`),
-      db.query(`SELECT d.id,d.business_id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,d.published,d.starts_at,d.ends_at,d.created_at,b.name business_name FROM deals d JOIN businesses b ON b.id=d.business_id ORDER BY d.created_at DESC`),
+      db.query(`SELECT d.id,d.business_id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,d.image_url,d.published,d.starts_at,d.ends_at,d.created_at,b.name business_name FROM deals d JOIN businesses b ON b.id=d.business_id ORDER BY d.created_at DESC`),
       db.query(`SELECT COUNT(*)::int count FROM users`),
       db.query(`SELECT COUNT(*)::int count FROM deal_use_reports`),
-      db.query(`SELECT id,business_name,business_email,proposed_deal,status,created_at FROM partner_inquiries ORDER BY created_at DESC LIMIT 50`),
-      db.query(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.metadata,a.created_at,u.first_name,u.last_name FROM admin_audit_log a JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 50`),
+      optionalQuery(db.query(`SELECT id,business_name,business_email,proposed_deal,status,created_at FROM partner_inquiries ORDER BY created_at DESC LIMIT 50`), { rows: [] } as { rows: unknown[] }),
+      optionalQuery(db.query(`SELECT a.id,a.action,a.entity_type,a.entity_id,a.metadata,a.created_at,u.first_name,u.last_name FROM admin_audit_log a JOIN users u ON u.id=a.user_id ORDER BY a.created_at DESC LIMIT 50`), { rows: [] } as { rows: unknown[] }),
     ])
     return { businesses: businesses.rows, deals: deals.rows, inquiries: inquiries.rows, audit: audit.rows, metrics: { members: members.rows[0].count, uses: uses.rows[0].count }, adminEmail: admin.personal_email }
   })
@@ -210,8 +213,8 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
 
   app.post('/api/admin/deals', async request => {
     requireSuperadmin(request)
-    const body = parse(z.object({ id: z.string().trim().regex(/^[a-z0-9-]+$/).max(100), businessId: z.string().trim().min(1).max(80), title: z.string().trim().min(2).max(160), description: z.string().trim().min(5).max(1000), channel: z.enum(['in_person', 'online']), category: z.string().trim().min(2).max(60), restrictions: z.string().trim().min(2).max(1000), promoCode: z.string().trim().max(200).optional(), estimatedSavingsCents: z.number().int().min(0).max(1000000), featured: z.boolean().default(false), sponsored: z.boolean().default(false), giveaway: z.boolean().default(false), startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional() }), request.body)
-    await db.query(`INSERT INTO deals(id,business_id,title,description,channel,category,restrictions,promo_code_encrypted,estimated_savings_cents,featured,sponsored,giveaway,published,starts_at,ends_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14)`, [body.id, body.businessId, body.title, body.description, body.channel, body.category, body.restrictions, body.promoCode ? encrypt(body.promoCode, config.DATA_ENCRYPTION_KEY) : null, body.estimatedSavingsCents, body.featured, body.sponsored, body.giveaway, body.startsAt || null, body.endsAt || null])
+    const body = parse(z.object({ id: z.string().trim().regex(/^[a-z0-9-]+$/).max(100), businessId: z.string().trim().min(1).max(80), title: z.string().trim().min(2).max(160), description: z.string().trim().min(5).max(1000), channel: z.enum(['in_person', 'online']), category: z.string().trim().min(2).max(60), restrictions: z.string().trim().min(2).max(1000), promoCode: z.string().trim().max(200).optional(), imageUrl: z.string().trim().max(2500000).nullable().optional(), estimatedSavingsCents: z.number().int().min(0).max(1000000), featured: z.boolean().default(false), sponsored: z.boolean().default(false), giveaway: z.boolean().default(false), startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional() }), request.body)
+    await db.query(`INSERT INTO deals(id,business_id,title,description,channel,category,restrictions,promo_code_encrypted,estimated_savings_cents,featured,sponsored,giveaway,image_url,published,starts_at,ends_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,true,$14,$15)`, [body.id, body.businessId, body.title, body.description, body.channel, body.category, body.restrictions, body.promoCode ? encrypt(body.promoCode, config.DATA_ENCRYPTION_KEY) : null, body.estimatedSavingsCents, body.featured, body.sponsored, body.giveaway, body.imageUrl || null, body.startsAt || null, body.endsAt || null])
     await db.query(`INSERT INTO admin_audit_log(id,user_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'created','deal',$3,$4)`, [randomUUID(), request.currentUser!.id, body.id, JSON.stringify({ businessId: body.businessId, title: body.title })])
     return { ok: true }
   })
@@ -219,8 +222,8 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
   app.patch('/api/admin/deals/:id', async request => {
     requireSuperadmin(request)
     const { id } = parse(z.object({ id: z.string().min(1) }), request.params)
-    const body = parse(z.object({ published: z.boolean().optional(), featured: z.boolean().optional(), sponsored: z.boolean().optional(), title: z.string().trim().min(2).max(160).optional(), description: z.string().trim().min(5).max(1000).optional(), restrictions: z.string().trim().min(2).max(1000).optional(), estimatedSavingsCents: z.number().int().min(0).max(1000000).optional(), startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional() }).refine(value => Object.keys(value).length > 0), request.body)
-    const mappings: Record<string, string> = { published: 'published', featured: 'featured', sponsored: 'sponsored', title: 'title', description: 'description', restrictions: 'restrictions', estimatedSavingsCents: 'estimated_savings_cents', startsAt: 'starts_at', endsAt: 'ends_at' }
+    const body = parse(z.object({ published: z.boolean().optional(), featured: z.boolean().optional(), sponsored: z.boolean().optional(), title: z.string().trim().min(2).max(160).optional(), description: z.string().trim().min(5).max(1000).optional(), restrictions: z.string().trim().min(2).max(1000).optional(), imageUrl: z.string().trim().max(2500000).nullable().optional(), estimatedSavingsCents: z.number().int().min(0).max(1000000).optional(), startsAt: z.string().datetime().nullable().optional(), endsAt: z.string().datetime().nullable().optional() }).refine(value => Object.keys(value).length > 0), request.body)
+    const mappings: Record<string, string> = { published: 'published', featured: 'featured', sponsored: 'sponsored', title: 'title', description: 'description', restrictions: 'restrictions', imageUrl: 'image_url', estimatedSavingsCents: 'estimated_savings_cents', startsAt: 'starts_at', endsAt: 'ends_at' }
     const fields = Object.entries(body).filter(([, value]) => value !== undefined)
     await db.query(`UPDATE deals SET ${fields.map(([field], index) => `${mappings[field]}=$${index + 1}`).join(',')} WHERE id=$${fields.length + 1}`, [...fields.map(([, value]) => value), id])
     await db.query(`INSERT INTO admin_audit_log(id,user_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'updated','deal',$3,$4)`, [randomUUID(), request.currentUser!.id, id, JSON.stringify(Object.fromEntries(fields))])
@@ -322,7 +325,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
     const query = parse(z.object({ q: z.string().optional(), category: z.string().optional(), channel: z.enum(['in_person', 'online']).optional(), saved: z.coerce.boolean().optional() }), request.query)
     const userId = request.currentUser?.id ?? null
     const result = await db.query(`SELECT d.id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,
-      b.id business_id,b.name business_name,b.description business_description,b.image_url,b.website_url,b.distance,b.hours,b.is_open,b.address,b.latitude,b.longitude,
+      b.id business_id,b.name business_name,b.description business_description,COALESCE(d.image_url,b.image_url) image_url,b.website_url,b.distance,b.hours,b.is_open,b.address,b.latitude,b.longitude,
       EXISTS(SELECT 1 FROM saved_deals s WHERE s.deal_id=d.id AND s.user_id=$1) saved,
       EXISTS(SELECT 1 FROM deal_use_reports r WHERE r.deal_id=d.id AND r.user_id=$1) used
       FROM deals d JOIN businesses b ON b.id=d.business_id
@@ -336,7 +339,7 @@ export function buildApp({ config, db }: { config: Config; db: DbPool }) {
   app.get('/api/deals/:id', async (request, reply) => {
     const { id } = parse(z.object({ id: z.string() }), request.params)
     const result = await db.query(`SELECT d.id,d.title,d.description,d.channel,d.category,d.restrictions,d.estimated_savings_cents,d.featured,d.sponsored,d.giveaway,
-      b.id business_id,b.name business_name,b.description business_description,b.image_url,b.website_url,b.distance,b.hours,b.is_open,b.address,b.latitude,b.longitude
+      b.id business_id,b.name business_name,b.description business_description,COALESCE(d.image_url,b.image_url) image_url,b.website_url,b.distance,b.hours,b.is_open,b.address,b.latitude,b.longitude
       FROM deals d JOIN businesses b ON b.id=d.business_id WHERE d.id=$1 AND d.published AND b.published AND (d.starts_at IS NULL OR d.starts_at<=now()) AND (d.ends_at IS NULL OR d.ends_at>now())`, [id])
     if (!result.rows[0]) return reply.code(404).send({ error: 'Deal not found.' })
     return { deal: result.rows[0] }
